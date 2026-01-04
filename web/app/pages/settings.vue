@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="mb-8">
-      <h2 class="text-2xl font-bold text-gray-900">Settings</h2>
+      <h2 class="text-2xl font-bold text-gray-900">Settings 2</h2>
       <p class="text-gray-500 mt-1">Manage your account and company preferences</p>
     </div>
 
