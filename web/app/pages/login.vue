@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
     <div class="max-w-md w-full">
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-forest-950">Proviant</h1>
+        <h1 class="text-3xl font-bold text-forest-950">Proviant, LLC</h1>
         <p class="text-slate-blue-500 mt-2">Sign in to your account</p>
       </div>
 
