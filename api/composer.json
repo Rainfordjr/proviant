@@ -12,7 +12,12 @@
         "php": "^8.2",
         "laravel/framework": "^11.0",
         "laravel/sanctum": "^4.0",
-        "laravel/tinker": "^2.10.1"
+        "laravel/tinker": "^2.10.1",
+        "symfony/clock": "^7.1",
+        "symfony/css-selector": "^7.1",
+        "symfony/event-dispatcher": "^7.1",
+        "symfony/string": "^7.1",
+        "symfony/translation": "^7.1"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
