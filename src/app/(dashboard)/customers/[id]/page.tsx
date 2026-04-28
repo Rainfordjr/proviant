@@ -5,6 +5,12 @@ import { ArrowLeft, Building2, Mail, Phone, MapPin, CheckCircle, XCircle, Pencil
 import { formatDate } from "@/lib/utils";
 import { ORDER_STATUSES } from "@/lib/constants";
 import { notFound } from "next/navigation";
+import {
+  CustomerBillingPanel,
+  type InvoiceRow,
+  type PaymentRow,
+  type SavedCardRow,
+} from "@/components/customers/customer-billing-panel";
 
 export default async function CustomerDetailPage({
   params,
@@ -13,6 +19,8 @@ export default async function CustomerDetailPage({
 }) {
   await requirePermission("customers.view");
   const canEdit = await checkPermission("customers.edit");
+  const canViewBilling = await checkPermission("customer_billing.view");
+  const canManageBilling = await checkPermission("customer_billing.manage");
 
   const { id } = await params;
   const supabase = await createClient();
@@ -43,11 +51,148 @@ export default async function CustomerDetailPage({
   const allOrders = [...(orders || []), ...(legacyOrders || [])];
 
   const totalRevenue = allOrders.reduce((sum, order) => {
-    const orderTotal = (order.order_items || []).reduce(
-      (s: number, item: any) => s + item.quantity * item.unit_price, 0
+    const items = (order.order_items ?? []) as Array<{
+      quantity: number;
+      unit_price: number;
+    }>;
+    const orderTotal = items.reduce(
+      (s, item) => s + Number(item.quantity) * Number(item.unit_price),
+      0
     );
     return sum + orderTotal;
   }, 0);
+
+  // ----------------------------------------------------------------
+  // Customer billing data (only fetched if the user can see it)
+  // ----------------------------------------------------------------
+  let billing: {
+    balance: number;
+    creditAvailable: number;
+    invoices: InvoiceRow[];
+    payments: PaymentRow[];
+    savedCards: SavedCardRow[];
+  } | null = null;
+
+  if (canViewBilling) {
+    // Balance + unapplied credit via SQL functions. RPC returns numeric ->
+    // string in supabase-js, so coerce defensively.
+    const [{ data: balanceRaw }, { data: creditRaw }] = await Promise.all([
+      supabase.rpc("customer_balance", { p_customer_id: id }),
+      supabase.rpc("customer_unapplied_credit", { p_customer_id: id }),
+    ]);
+    const balance = Number(balanceRaw ?? 0);
+    const creditAvailable = Number(creditRaw ?? 0);
+
+    // Invoices + per-invoice applied total via embedded relation
+    const { data: rawInvoices } = await supabase
+      .from("customer_invoices")
+      .select(
+        "id, invoice_number, kind, status, issued_at, total, order_id, notes, customer_payment_applications(amount)"
+      )
+      .eq("customer_id", id)
+      .order("issued_at", { ascending: false });
+
+    const invoices: InvoiceRow[] = (rawInvoices ?? []).map((row: {
+      id: string;
+      invoice_number: string;
+      kind: string;
+      status: string;
+      issued_at: string;
+      total: number | string;
+      order_id: string | null;
+      notes: string | null;
+      customer_payment_applications: { amount: number | string }[] | null;
+    }) => ({
+      id: row.id,
+      invoice_number: row.invoice_number,
+      kind: row.kind as "invoice" | "credit_note",
+      status: row.status as "open" | "partial" | "paid" | "void",
+      issued_at: row.issued_at,
+      total: Number(row.total),
+      applied: (row.customer_payment_applications ?? []).reduce(
+        (s, app) => s + Number(app.amount),
+        0
+      ),
+      order_id: row.order_id,
+      notes: row.notes,
+    }));
+
+    // Payments + the invoices each one was applied to. Supabase-js's
+    // generated typing for nested FK relations is wobbly here (sometimes
+    // single object, sometimes array) so we accept it via `unknown` and
+    // normalize at the boundary.
+    const { data: rawPayments } = await supabase
+      .from("customer_payments")
+      .select(
+        "id, amount, method, reference_number, received_at, notes, customer_payment_applications(invoice_id, amount, customer_invoices(invoice_number))"
+      )
+      .eq("customer_id", id)
+      .order("received_at", { ascending: false });
+
+    type RawApplication = {
+      invoice_id: string;
+      amount: number | string;
+      // Embedded relation comes back as either an object or an array
+      // depending on how supabase-js infers the cardinality.
+      customer_invoices:
+        | { invoice_number: string }
+        | { invoice_number: string }[]
+        | null;
+    };
+    type RawPayment = {
+      id: string;
+      amount: number | string;
+      method: string;
+      reference_number: string | null;
+      received_at: string;
+      notes: string | null;
+      customer_payment_applications: RawApplication[] | null;
+    };
+
+    const payments: PaymentRow[] = (
+      (rawPayments ?? []) as unknown as RawPayment[]
+    ).map((row) => ({
+      id: row.id,
+      amount: Number(row.amount),
+      method: row.method,
+      reference_number: row.reference_number,
+      received_at: row.received_at,
+      notes: row.notes,
+      applications: (row.customer_payment_applications ?? []).map((a) => {
+        const inv = Array.isArray(a.customer_invoices)
+          ? a.customer_invoices[0]
+          : a.customer_invoices;
+        return {
+          invoice_id: a.invoice_id,
+          invoice_number: inv?.invoice_number ?? "(deleted)",
+          amount: Number(a.amount),
+        };
+      }),
+    }));
+
+    // Saved cards on file (Authorize.Net CIM-backed). RLS scopes by org.
+    const { data: rawCards } = await supabase
+      .from("customer_payment_profiles")
+      .select(
+        "id, card_type, card_last4, card_exp_month, card_exp_year, cardholder_name, is_default, created_at"
+      )
+      .eq("customer_id", id)
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    const savedCards: SavedCardRow[] = (rawCards ?? []).map((c) => ({
+      id: c.id as string,
+      card_type: c.card_type as string | null,
+      card_last4: c.card_last4 as string | null,
+      card_exp_month: c.card_exp_month as string | null,
+      card_exp_year: c.card_exp_year as string | null,
+      cardholder_name: c.cardholder_name as string | null,
+      is_default: c.is_default as boolean,
+      created_at: c.created_at as string,
+    }));
+
+    billing = { balance, creditAvailable, invoices, payments, savedCards };
+  }
 
   return (
     <div className="space-y-6">
@@ -123,6 +268,20 @@ export default async function CustomerDetailPage({
         </div>
       </div>
 
+      {/* Billing & Payments */}
+      {billing && (
+        <CustomerBillingPanel
+          customerId={id}
+          customerName={customer.name}
+          balance={billing.balance}
+          creditAvailable={billing.creditAvailable}
+          invoices={billing.invoices}
+          payments={billing.payments}
+          savedCards={billing.savedCards}
+          canManage={canManageBilling}
+        />
+      )}
+
       {/* Notes */}
       {customer.notes && (
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -150,9 +309,16 @@ export default async function CustomerDetailPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {allOrders.map((order: any) => {
-                const orderTotal = (order.order_items || []).reduce(
-                  (s: number, item: any) => s + item.quantity * item.unit_price, 0
+              {(allOrders as Array<{
+                id: string;
+                order_number: string;
+                ordered_at: string;
+                status: string;
+                order_items: Array<{ quantity: number; unit_price: number }> | null;
+              }>).map((order) => {
+                const orderTotal = (order.order_items ?? []).reduce(
+                  (s, item) => s + Number(item.quantity) * Number(item.unit_price),
+                  0
                 );
                 const statusInfo = ORDER_STATUSES[order.status as keyof typeof ORDER_STATUSES];
                 return (

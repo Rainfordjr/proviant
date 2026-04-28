@@ -43,6 +43,8 @@ export function OrgLedger({ orgId, entries, balance, invoices }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // UI-level guard against double-submits while a request is in flight.
+    if (saving) return;
     setSaving(true);
 
     const amount = parseFloat(form.amount);
@@ -51,11 +53,21 @@ export function OrgLedger({ orgId, entries, balance, invoices }: Props) {
       return;
     }
 
+    // Fresh Idempotency-Key per submission. If a network retry replays this
+    // POST, the server will dedup against this key.
+    const idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     if (showForm === "payment") {
       // Use the record-payment route (handles referral credits automatically)
       await fetch("/api/admin/record-payment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         body: JSON.stringify({
           org_id: orgId,
           amount,

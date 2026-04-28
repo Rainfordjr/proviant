@@ -1,29 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/platformAdmin";
+import { z } from "zod";
+import { createAdminClient, verifyPlatformAdminApi } from "@/lib/platformAdmin";
+import { parseBody, uuid } from "@/lib/validation";
+
+const SubscriptionSchema = z.object({
+  orgId: uuid(),
+  subscriptionId: uuid().optional(),
+  billing_type: z.enum(["plan", "custom"]),
+  plan_id: uuid().optional().nullable(),
+  custom_rate_monthly: z.number().nonnegative().optional().nullable(),
+  custom_rate_yearly: z.number().nonnegative().optional().nullable(),
+  custom_notes: z.string().optional().nullable(),
+  billing_cycle: z.enum(["monthly", "yearly"]),
+  status: z.enum(["trial", "active", "past_due", "cancelled", "suspended"]),
+});
 
 export async function POST(request: NextRequest) {
   // Verify the caller is a platform admin
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await verifyPlatformAdminApi();
+  if (!auth.ok) return auth.response;
 
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from("users")
-    .select("is_platform_admin")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile?.is_platform_admin) {
-    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-  }
-
-  const body = await request.json();
+  const parsed = await parseBody(request, SubscriptionSchema);
+  if (!parsed.ok) return parsed.response;
   const {
     orgId,
     subscriptionId,
@@ -34,7 +32,7 @@ export async function POST(request: NextRequest) {
     custom_notes,
     billing_cycle,
     status,
-  } = body;
+  } = parsed.data;
 
   const admin = createAdminClient();
 

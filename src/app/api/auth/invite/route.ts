@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { requirePermissionApi } from "@/lib/permissions";
+import { parseBody, uuid } from "@/lib/validation";
 
 // Admin client to bypass RLS
 const supabaseAdmin = createClient(
@@ -8,32 +11,26 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const InviteSchema = z.object({
+  email: z.string().email(),
+  fullName: z.string().min(1).optional(),
+  roleId: uuid().optional(),
+});
+
 export async function POST(request: NextRequest) {
   try {
-    // Verify the requesting user is authenticated and get their org
+    // Gate: caller must hold users.create (the seeded "Invite Users" permission).
+    // This replaces the previous hand-rolled is_admin role query so that any
+    // role with users.create — not just admins — can invite teammates.
+    const auth = await requirePermissionApi("users.create");
+    if (!auth.ok) return auth.response;
+    const { user: currentAuthUser } = auth;
+
+    const parsed = await parseBody(request, InviteSchema);
+    if (!parsed.ok) return parsed.response;
+    const { email, fullName, roleId } = parsed.data;
+
     const supabase = await createServerClient();
-    const {
-      data: { user: currentAuthUser },
-    } = await supabase.auth.getUser();
-
-    if (!currentAuthUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Verify the user has an admin role
-    const { data: adminCheck } = await supabase
-      .from("user_roles")
-      .select("roles!inner(is_admin)")
-      .eq("user_id", currentAuthUser.id)
-      .eq("roles.is_admin", true)
-      .limit(1);
-
-    if (!adminCheck || adminCheck.length === 0) {
-      return NextResponse.json(
-        { error: "Only administrators can invite users" },
-        { status: 403 }
-      );
-    }
 
     // Get the inviter's org_id from their profile
     const { data: inviter } = await supabase
@@ -45,15 +42,6 @@ export async function POST(request: NextRequest) {
     if (!inviter) {
       return NextResponse.json(
         { error: "Could not find your user profile" },
-        { status: 400 }
-      );
-    }
-
-    const { email, fullName, roleId } = await request.json();
-
-    if (!email) {
-      return NextResponse.json(
-        { error: "Email is required" },
         { status: 400 }
       );
     }

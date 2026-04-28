@@ -54,12 +54,26 @@ export default function PlansPage() {
   } | null>(null);
 
   const selectPlan = async (planId: string) => {
+    // UI-level guard: a rapid second click while the first is still in flight
+    // would otherwise queue a duplicate POST.
+    if (saving) return;
     setSaving(true);
     setProrationInfo(null);
 
+    // Idempotency-Key prevents the server from applying the same plan change
+    // twice if the request is somehow retried at the network layer. We mint
+    // a fresh key per intent (each call to selectPlan).
+    const idempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     const res = await fetch("/api/billing/change-plan", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+      },
       body: JSON.stringify({ newPlanId: planId }),
     });
 

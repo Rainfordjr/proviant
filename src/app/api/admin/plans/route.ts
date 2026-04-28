@@ -1,28 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/platformAdmin";
+import { z } from "zod";
+import { createAdminClient, verifyPlatformAdminApi } from "@/lib/platformAdmin";
+import { parseBody, uuid } from "@/lib/validation";
 
-async function verifyPlatformAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+// Shared optional fields for plan create/update.
+const PlanFieldsSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().nullable().optional(),
+  price_monthly: z.number().nonnegative(),
+  price_yearly: z.number().nonnegative().nullable().optional(),
+  max_users: z.number().int().positive().nullable().optional(),
+  max_batches_per_month: z.number().int().positive().nullable().optional(),
+  included_modules: z.array(z.string()).optional(),
+  is_active: z.boolean().optional(),
+  is_featured: z.boolean().optional(),
+  badge: z.string().nullable().optional(),
+  sort_order: z.number().int().optional(),
+});
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("is_platform_admin")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile?.is_platform_admin) return null;
-  return user;
-}
+// PUT can omit any of those (partial) but requires planId + optional change_notes.
+const PlanUpdateSchema = PlanFieldsSchema.partial().extend({
+  planId: uuid(),
+  change_notes: z.string().nullable().optional(),
+});
 
 // POST: Create a new plan
 export async function POST(request: NextRequest) {
-  const user = await verifyPlatformAdmin();
-  if (!user) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const auth = await verifyPlatformAdminApi();
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
 
-  const body = await request.json();
+  const parsed = await parseBody(request, PlanFieldsSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const admin = createAdminClient();
 
   // Create the plan
@@ -69,15 +79,13 @@ export async function POST(request: NextRequest) {
 
 // PUT: Update an existing plan (creates a new version)
 export async function PUT(request: NextRequest) {
-  const user = await verifyPlatformAdmin();
-  if (!user) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const auth = await verifyPlatformAdminApi();
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
 
-  const body = await request.json();
-  const { planId, change_notes, ...fields } = body;
-
-  if (!planId) {
-    return NextResponse.json({ error: "planId required" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, PlanUpdateSchema);
+  if (!parsed.ok) return parsed.response;
+  const { planId, change_notes, ...fields } = parsed.data;
 
   const admin = createAdminClient();
 
@@ -95,7 +103,7 @@ export async function PUT(request: NextRequest) {
   const nextVersion = (currentPlan.current_version || 1) + 1;
 
   // Build the update payload — only include fields that were provided
-  const updatePayload: Record<string, any> = {
+  const updatePayload: Record<string, unknown> = {
     current_version: nextVersion,
     updated_at: new Date().toISOString(),
   };

@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { parseBody, uuid } from "@/lib/validation";
 
 // Use service role key to bypass RLS for signup operations
 const supabaseAdmin = createClient(
@@ -7,9 +9,21 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const SignupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  fullName: z.string().min(1, "Full name is required"),
+  orgName: z.string().min(1, "Organization name is required"),
+  planId: uuid().optional(),
+  referralCode: z.string().optional(),
+});
+
 export async function POST(request: NextRequest) {
+  const parsed = await parseBody(request, SignupSchema);
+  if (!parsed.ok) return parsed.response;
+  const { email, password, fullName, orgName, planId, referralCode } = parsed.data;
+
   try {
-    const { email, password, fullName, orgName, planId, referralCode } = await request.json();
 
     // 1. Create the auth user
     const { data: authData, error: authError } =
@@ -22,11 +36,12 @@ export async function POST(request: NextRequest) {
 
     if (authError) {
       // AuthError extends Error — message is on the prototype chain
-      const msg = String(authError.message || "")
-        || (authError as any).code
-        || (authError as any).status
-        || `Auth error (${authError.name})`;
-      console.error("Signup auth error:", msg, "| status:", (authError as any).status, "| code:", (authError as any).code);
+      const err = authError as Error & { code?: string; status?: number };
+      const msg = String(err.message || "")
+        || err.code
+        || (err.status !== undefined ? String(err.status) : "")
+        || `Auth error (${err.name})`;
+      console.error("Signup auth error:", msg, "| status:", err.status, "| code:", err.code);
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
@@ -184,8 +199,10 @@ export async function POST(request: NextRequest) {
       current_period_end: trialEnd.toISOString(),
     });
 
-    // 9. Create referral record if a valid referrer was found
-    if (referrerOrgId) {
+    // 9. Create referral record if a valid referrer was found.
+    // (referrerOrgId is only set above when referralCode was truthy, so
+    //  the second check is effectively for the type narrower's benefit.)
+    if (referrerOrgId && referralCode) {
       await supabaseAdmin.from("referrals").insert({
         referrer_org_id: referrerOrgId,
         referred_org_id: org.id,
@@ -200,10 +217,11 @@ export async function POST(request: NextRequest) {
       user: { id: authData.user.id, email },
       org: { id: org.id, name: orgName },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Signup error:", err);
+    const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: err?.message || String(err) || "An unexpected error occurred" },
+      { error: message || "An unexpected error occurred" },
       { status: 500 }
     );
   }

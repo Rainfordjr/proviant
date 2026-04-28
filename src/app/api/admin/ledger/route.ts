@@ -1,33 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/platformAdmin";
+import { z } from "zod";
+import { createAdminClient, verifyPlatformAdminApi } from "@/lib/platformAdmin";
+import { parseBody, uuid } from "@/lib/validation";
 
-async function verifyPlatformAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from("users")
-    .select("is_platform_admin")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile?.is_platform_admin) return null;
-  return user;
-}
+const LedgerEntrySchema = z.object({
+  org_id: uuid(),
+  entry_type: z.enum([
+    "charge",
+    "payment",
+    "credit",
+    "referral_credit",
+    "adjustment",
+    "refund",
+  ]),
+  amount: z.number().finite(),
+  description: z.string().min(1),
+  reference_number: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  invoice_id: uuid().optional().nullable(),
+});
 
 // POST: Add a ledger entry
 export async function POST(request: NextRequest) {
-  const user = await verifyPlatformAdmin();
-  if (!user) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const auth = await verifyPlatformAdminApi();
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
 
-  const body = await request.json();
-  const { org_id, entry_type, amount, description, reference_number, notes, invoice_id } = body;
-
-  if (!org_id || !entry_type || amount === undefined || !description) {
-    return NextResponse.json({ error: "org_id, entry_type, amount, and description required" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, LedgerEntrySchema);
+  if (!parsed.ok) return parsed.response;
+  const { org_id, entry_type, amount, description, reference_number, notes, invoice_id } = parsed.data;
 
   const admin = createAdminClient();
 

@@ -1,37 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/platformAdmin";
+import { z } from "zod";
+import { createAdminClient, verifyPlatformAdminApi } from "@/lib/platformAdmin";
+import { parseBody, uuid } from "@/lib/validation";
 
-async function verifyPlatformAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: profile } = await supabase
-    .from("users")
-    .select("is_platform_admin")
-    .eq("id", user.id)
-    .single();
-  if (!profile?.is_platform_admin) return null;
-  return user;
-}
+const ReferralSchema = z
+  .object({
+    referrer_org_id: uuid(),
+    referred_org_id: uuid(),
+    credit_rate: z.number().min(0).max(1).optional(),
+  })
+  .refine((data) => data.referrer_org_id !== data.referred_org_id, {
+    message: "An org cannot refer itself",
+    path: ["referred_org_id"],
+  });
 
 /**
  * POST: Create a new referral relationship between two orgs.
  */
 export async function POST(request: NextRequest) {
-  const user = await verifyPlatformAdmin();
-  if (!user) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  const auth = await verifyPlatformAdminApi();
+  if (!auth.ok) return auth.response;
 
-  const body = await request.json();
-  const { referrer_org_id, referred_org_id, credit_rate } = body;
-
-  if (!referrer_org_id || !referred_org_id) {
-    return NextResponse.json({ error: "referrer_org_id and referred_org_id required" }, { status: 400 });
-  }
-
-  if (referrer_org_id === referred_org_id) {
-    return NextResponse.json({ error: "An org cannot refer itself" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, ReferralSchema);
+  if (!parsed.ok) return parsed.response;
+  const { referrer_org_id, referred_org_id, credit_rate } = parsed.data;
 
   const admin = createAdminClient();
 

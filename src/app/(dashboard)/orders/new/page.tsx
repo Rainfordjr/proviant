@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { generateOrderNumber } from "@/lib/utils";
 import { useRequirePermission } from "@/lib/usePermission";
+import { CustomerPicker } from "@/components/orders/customer-picker";
 
 interface OrderLine {
   productId: string;
@@ -19,9 +20,10 @@ export default function NewOrderPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Array<{ id: string; name: string; sku: string | null }>>([]);
 
   const [orderNumber, setOrderNumber] = useState(generateOrderNumber());
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [notes, setNotes] = useState("");
@@ -65,6 +67,7 @@ export default function NewOrderPage() {
     const { data: order, error: orderError } = await supabase.from("orders").insert({
       org_id: profile.org_id,
       order_number: orderNumber,
+      customer_id: customerId,
       customer_name: customerName,
       customer_email: customerEmail || null,
       notes: notes || null,
@@ -104,37 +107,32 @@ export default function NewOrderPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-        {/* Customer info */}
+        {/* Order details */}
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Customer Information</h2>
+          <h2 className="text-base font-semibold text-gray-900">Order Details</h2>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="orderNumber" className="block text-sm font-medium text-gray-700">Order Number *</label>
-              <input id="orderNumber" type="text" required value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label htmlFor="customerName" className="block text-sm font-medium text-gray-700">Customer Name *</label>
-              <input id="customerName" type="text" required value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="e.g., Pike Place Market Cafe"
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
+          <div>
+            <label htmlFor="orderNumber" className="block text-sm font-medium text-gray-700">Order Number *</label>
+            <input id="orderNumber" type="text" required value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="customerEmail" className="block text-sm font-medium text-gray-700">Customer Email</label>
-              <input id="customerEmail" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)}
-                placeholder="orders@customer.com"
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notes</label>
-              <input id="notes" type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
-                placeholder="Delivery instructions, etc."
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
+          <CustomerPicker
+            customerId={customerId}
+            customerName={customerName}
+            customerEmail={customerEmail}
+            onChange={(next) => {
+              setCustomerId(next.customerId);
+              setCustomerName(next.customerName);
+              setCustomerEmail(next.customerEmail);
+            }}
+          />
+
+          <div>
+            <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notes</label>
+            <input id="notes" type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
+              placeholder="Delivery instructions, etc."
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
         </div>
 

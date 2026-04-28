@@ -3,6 +3,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /*
+   * Force light rendering even when the OS is in dark mode. The dashboard's
+   * cards / inputs are all explicitly light-themed (bg-white text-gray-900),
+   * and color-scheme:light keeps native form controls (input text colors,
+   * scrollbars, etc.) from picking up the user's dark preference and going
+   * white-text-on-white-background.
+   */
+  color-scheme: light;
 }
 
 @theme inline {
@@ -12,15 +20,44 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Defensive default for form controls so any input/select/textarea without
+ * an explicit Tailwind text-color class still renders dark text. Tailwind's
+ * preflight sets `color: inherit` on form controls, which would otherwise
+ * pull from the body's --foreground variable; !important is the simplest
+ * way to win against preflight without rewriting every input className.
+ */
+input,
+select,
+textarea {
+  color: #171717 !important;
+}
+
+/*
+ * Chrome / Safari autofill paints its own background + text color when a
+ * password manager suggests a saved value. Override it back to readable.
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #171717 !important;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  caret-color: #171717 !important;
+}
+
+/*
+ * Placeholders should be visibly muted (not blend with empty input) but
+ * not so faint that they're invisible.
+ */
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important;
 }
