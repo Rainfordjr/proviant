@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ChefHat, ShoppingBag } from "lucide-react";
@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { generateBatchNumber } from "@/lib/utils";
 import { useRequirePermission } from "@/lib/usePermission";
 
-export default function NewBatchPage() {
+function NewBatchForm() {
   const { loading: permLoading } = useRequirePermission("batches.create");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -195,5 +195,13 @@ export default function NewBatchPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function NewBatchPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-gray-500">Loading…</div>}>
+      <NewBatchForm />
+    </Suspense>
   );
 }
