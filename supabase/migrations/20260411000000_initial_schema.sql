@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. ORGANIZATIONS (tenants)
 -- ============================================================
 CREATE TABLE organizations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   plan_tier TEXT NOT NULL DEFAULT 'free' CHECK (plan_tier IN ('free', 'starter', 'pro', 'enterprise')),
   stripe_customer_id TEXT,
@@ -35,7 +35,7 @@ CREATE INDEX idx_users_org_id ON users(org_id);
 -- 3. PRODUCTS
 -- ============================================================
 CREATE TABLE products (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   sku TEXT NOT NULL,
@@ -54,7 +54,7 @@ CREATE INDEX idx_products_org_id ON products(org_id);
 -- 4. SUPPLIERS
 -- ============================================================
 CREATE TABLE suppliers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   contact_name TEXT,
@@ -73,7 +73,7 @@ CREATE INDEX idx_suppliers_org_id ON suppliers(org_id);
 -- 5. RAW MATERIALS
 -- ============================================================
 CREATE TABLE raw_materials (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
@@ -93,7 +93,7 @@ CREATE INDEX idx_raw_materials_supplier_id ON raw_materials(supplier_id);
 -- 6. MATERIAL LOTS (incoming ingredient lots)
 -- ============================================================
 CREATE TABLE material_lots (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   material_id UUID NOT NULL REFERENCES raw_materials(id) ON DELETE CASCADE,
   lot_number TEXT NOT NULL,
   quantity NUMERIC NOT NULL,
@@ -112,7 +112,7 @@ CREATE INDEX idx_material_lots_expiry_date ON material_lots(expiry_date);
 -- 7. BATCHES (production runs)
 -- ============================================================
 CREATE TABLE batches (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
   batch_number TEXT NOT NULL,
@@ -134,7 +134,7 @@ CREATE INDEX idx_batches_status ON batches(status);
 -- 8. BATCH INGREDIENTS (traceability link)
 -- ============================================================
 CREATE TABLE batch_ingredients (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
   material_lot_id UUID NOT NULL REFERENCES material_lots(id) ON DELETE RESTRICT,
   quantity_used NUMERIC NOT NULL,
@@ -148,7 +148,7 @@ CREATE INDEX idx_batch_ingredients_material_lot_id ON batch_ingredients(material
 -- 9. COMPLIANCE LOGS
 -- ============================================================
 CREATE TABLE compliance_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   type TEXT NOT NULL CHECK (type IN ('temperature', 'sanitation', 'allergen', 'ccp', 'other')),
   ccp_id TEXT,
@@ -167,7 +167,7 @@ CREATE INDEX idx_compliance_logs_recorded_at ON compliance_logs(recorded_at);
 -- 10. HACCP PLANS
 -- ============================================================
 CREATE TABLE haccp_plans (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
@@ -185,7 +185,7 @@ CREATE INDEX idx_haccp_plans_org_id ON haccp_plans(org_id);
 -- 11. HACCP CRITICAL CONTROL POINTS
 -- ============================================================
 CREATE TABLE haccp_ccps (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   plan_id UUID NOT NULL REFERENCES haccp_plans(id) ON DELETE CASCADE,
   step_number INTEGER NOT NULL,
   name TEXT NOT NULL,
@@ -204,7 +204,7 @@ CREATE INDEX idx_haccp_ccps_plan_id ON haccp_ccps(plan_id);
 -- 12. ORDERS
 -- ============================================================
 CREATE TABLE orders (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   order_number TEXT NOT NULL,
   customer_name TEXT NOT NULL,
@@ -225,7 +225,7 @@ CREATE INDEX idx_orders_status ON orders(status);
 -- 13. ORDER ITEMS
 -- ============================================================
 CREATE TABLE order_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
   batch_id UUID REFERENCES batches(id) ON DELETE SET NULL,
@@ -240,7 +240,7 @@ CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 -- 14. PURCHASE ORDERS (for raw materials)
 -- ============================================================
 CREATE TABLE purchase_orders (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   po_number TEXT NOT NULL,
   supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
@@ -260,7 +260,7 @@ CREATE INDEX idx_purchase_orders_org_id ON purchase_orders(org_id);
 -- 15. PURCHASE ORDER ITEMS
 -- ============================================================
 CREATE TABLE purchase_order_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   purchase_order_id UUID NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
   material_id UUID NOT NULL REFERENCES raw_materials(id) ON DELETE RESTRICT,
   quantity_ordered NUMERIC NOT NULL,

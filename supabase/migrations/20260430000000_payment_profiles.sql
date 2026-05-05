@@ -29,7 +29,7 @@ CREATE UNIQUE INDEX idx_customers_auth_net_profile
 -- 2. customer_payment_profiles ----------------------------------
 
 CREATE TABLE customer_payment_profiles (
-  id                          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                      UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   customer_id                 UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
 

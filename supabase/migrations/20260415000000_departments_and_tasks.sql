@@ -5,7 +5,7 @@
 -- 1. DEPARTMENTS
 -- ============================================================
 CREATE TABLE departments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
@@ -24,7 +24,7 @@ CREATE POLICY "Tenant isolation" ON departments
 -- 2. USER ↔ DEPARTMENT (many-to-many)
 -- ============================================================
 CREATE TABLE user_departments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
   is_lead BOOLEAN NOT NULL DEFAULT false,   -- department lead can manage dept tasks
@@ -46,7 +46,7 @@ CREATE POLICY "Tenant isolation" ON user_departments
 -- 3. TASKS
 -- ============================================================
 CREATE TABLE tasks (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
@@ -100,7 +100,7 @@ CREATE POLICY "Tenant isolation" ON tasks
 -- 4. TASK COMMENTS / ACTIVITY LOG
 -- ============================================================
 CREATE TABLE task_comments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   body TEXT NOT NULL,
@@ -123,7 +123,7 @@ CREATE POLICY "Tenant isolation" ON task_comments
 -- 5. TASK NOTIFICATIONS
 -- ============================================================
 CREATE TABLE task_notifications (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type TEXT NOT NULL CHECK (type IN ('assigned', 'status_changed', 'comment', 'due_soon', 'overdue')),

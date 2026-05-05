@@ -6,7 +6,7 @@
 
 -- 1. Plan versions table — immutable snapshots of plan state
 CREATE TABLE plan_versions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   plan_id UUID NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
   version INT NOT NULL,                        -- 1, 2, 3, ...
   name TEXT NOT NULL,

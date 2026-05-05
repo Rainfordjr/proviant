@@ -6,7 +6,7 @@
 -- 1. RECIPES (formulas that produce output)
 -- ============================================================
 CREATE TABLE recipes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
@@ -24,7 +24,7 @@ CREATE INDEX idx_recipes_org_id ON recipes(org_id);
 -- 2. RECIPE INGREDIENTS (what raw materials a recipe needs)
 -- ============================================================
 CREATE TABLE recipe_ingredients (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recipe_id UUID NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
   raw_material_id UUID NOT NULL REFERENCES raw_materials(id) ON DELETE RESTRICT,
   quantity NUMERIC NOT NULL,
@@ -43,7 +43,7 @@ CREATE INDEX idx_recipe_ingredients_material_id ON recipe_ingredients(raw_materi
 --    This enables unlimited nesting depth.
 -- ============================================================
 CREATE TABLE product_components (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   component_type TEXT NOT NULL CHECK (component_type IN ('recipe', 'product')),
   recipe_id UUID REFERENCES recipes(id) ON DELETE RESTRICT,

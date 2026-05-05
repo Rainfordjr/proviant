@@ -6,7 +6,7 @@
 
 -- Master catalog of available modules (global, not per-org)
 CREATE TABLE modules (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT NOT NULL UNIQUE,               -- e.g. 'inventory-mapping', 'lot-traceability'
   name TEXT NOT NULL,                       -- Display name
   description TEXT,
@@ -22,7 +22,7 @@ CREATE TABLE modules (
 
 -- Per-org module activations
 CREATE TABLE org_modules (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   module_id UUID NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
   is_active BOOLEAN NOT NULL DEFAULT true,

@@ -8,7 +8,7 @@
 
 -- 1. Subscription events — immutable log of every change
 CREATE TABLE subscription_events (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL CHECK (event_type IN (
     'plan_change', 'addon_added', 'addon_removed',
@@ -44,7 +44,7 @@ CREATE POLICY "subscription_events_org_read" ON subscription_events
 
 -- 2. Add invoice line items for detailed breakdowns
 CREATE TABLE invoice_line_items (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   invoice_id UUID NOT NULL REFERENCES billing_invoices(id) ON DELETE CASCADE,
   description TEXT NOT NULL,
   line_type TEXT NOT NULL CHECK (line_type IN ('plan', 'addon', 'credit', 'proration_credit', 'proration_charge', 'adjustment')),

@@ -6,7 +6,7 @@
 
 -- 1. Plans (predefined tiers)
 CREATE TABLE plans (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,                          -- e.g. "Starter", "Pro", "Enterprise"
   description TEXT,
@@ -30,7 +30,7 @@ CREATE POLICY "plans_org_write" ON plans
 
 -- 2. Org subscriptions (what plan each customer-org is on)
 CREATE TABLE org_subscriptions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   plan_id UUID REFERENCES plans(id),           -- null if using a custom flat rate
   billing_type TEXT NOT NULL DEFAULT 'plan' CHECK (billing_type IN ('plan', 'custom')),
@@ -57,7 +57,7 @@ CREATE POLICY "org_subscriptions_org_write" ON org_subscriptions
 
 -- 3. Billing history / invoice ledger (for record keeping)
 CREATE TABLE billing_invoices (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   period_start TIMESTAMPTZ NOT NULL,
   period_end TIMESTAMPTZ NOT NULL,

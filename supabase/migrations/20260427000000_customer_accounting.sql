@@ -38,7 +38,7 @@ GRANT  ALL ON TABLE customer_invoice_counters TO   service_role;
 -- 2. customer_invoices ----------------------------------------
 
 CREATE TABLE customer_invoices (
-  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   customer_id     UUID NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
 
@@ -83,7 +83,7 @@ CREATE TRIGGER set_updated_at
 -- 3. customer_invoice_line_items ------------------------------
 
 CREATE TABLE customer_invoice_line_items (
-  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   invoice_id    UUID NOT NULL REFERENCES customer_invoices(id) ON DELETE CASCADE,
   description   TEXT NOT NULL,
   quantity      NUMERIC(12,3) NOT NULL DEFAULT 1,
@@ -107,7 +107,7 @@ CREATE POLICY "Tenant isolation" ON customer_invoice_line_items
 -- 4. customer_payments ----------------------------------------
 
 CREATE TABLE customer_payments (
-  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id           UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   customer_id      UUID NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
 
@@ -134,7 +134,7 @@ CREATE POLICY "Tenant isolation" ON customer_payments
 -- a payment was applied to a given invoice.
 
 CREATE TABLE customer_payment_applications (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   payment_id  UUID NOT NULL REFERENCES customer_payments(id) ON DELETE CASCADE,
   invoice_id  UUID NOT NULL REFERENCES customer_invoices(id) ON DELETE RESTRICT,
   amount      NUMERIC(12,2) NOT NULL CHECK (amount > 0),

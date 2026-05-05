@@ -12,7 +12,7 @@
 
 -- 1. Ledger entries — the single source of truth for billing
 CREATE TABLE ledger_entries (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   entry_type TEXT NOT NULL CHECK (entry_type IN (
     'charge',             -- subscription fee, proration charge, addon charge
@@ -46,7 +46,7 @@ CREATE INDEX idx_ledger_entries_org_created ON ledger_entries(org_id, created_at
 
 -- 2. Referral program
 CREATE TABLE referrals (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   referrer_org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   referred_org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   referral_code TEXT NOT NULL,

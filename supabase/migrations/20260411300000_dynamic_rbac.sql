@@ -9,7 +9,7 @@
 -- 1. PERMISSIONS (every possible action in the system)
 -- ============================================================
 CREATE TABLE permissions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code TEXT NOT NULL UNIQUE,
   category TEXT NOT NULL,
   name TEXT NOT NULL,
@@ -89,7 +89,7 @@ INSERT INTO permissions (code, category, name, description) VALUES
 -- 2. ROLES (per-organization, admin creates custom roles)
 -- ============================================================
 CREATE TABLE roles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
@@ -106,7 +106,7 @@ CREATE INDEX idx_roles_org_id ON roles(org_id);
 -- 3. ROLE PERMISSIONS (which permissions each role has)
 -- ============================================================
 CREATE TABLE role_permissions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
   permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -119,7 +119,7 @@ CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
 -- 4. USER ROLES (which roles each user has — can have multiple)
 -- ============================================================
 CREATE TABLE user_roles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
   assigned_by UUID REFERENCES users(id),

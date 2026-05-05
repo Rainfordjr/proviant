@@ -9,7 +9,7 @@
 --    Workflow: draft → submitted → approved (or rejected → new draft)
 -- ============================================================
 CREATE TABLE recipe_versions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recipe_id UUID NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
   version_number INTEGER NOT NULL DEFAULT 1,
   status TEXT NOT NULL DEFAULT 'draft'
@@ -47,7 +47,7 @@ CREATE INDEX idx_recipe_versions_status ON recipe_versions(status);
 --    Ingredients are tied to a specific version, not the recipe.
 -- ============================================================
 CREATE TABLE recipe_version_ingredients (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recipe_version_id UUID NOT NULL REFERENCES recipe_versions(id) ON DELETE CASCADE,
   raw_material_id UUID NOT NULL REFERENCES raw_materials(id) ON DELETE RESTRICT,
   quantity NUMERIC NOT NULL,
@@ -93,7 +93,7 @@ ALTER TABLE product_components
 -- 6. DEV PROJECTS (R&D tracking)
 -- ============================================================
 CREATE TABLE dev_projects (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
@@ -112,7 +112,7 @@ CREATE INDEX idx_dev_projects_status ON dev_projects(status);
 -- 7. DEV BATCH NOTES (log results on dev batches)
 -- ============================================================
 CREATE TABLE dev_batch_notes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id UUID NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
   note_type TEXT NOT NULL DEFAULT 'observation'
     CHECK (note_type IN ('observation', 'test_result', 'adjustment', 'conclusion')),

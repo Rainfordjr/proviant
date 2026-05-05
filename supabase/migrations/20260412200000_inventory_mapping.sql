@@ -5,7 +5,7 @@
 
 -- A site is a physical location (warehouse, cold storage, etc.)
 CREATE TABLE warehouse_sites (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   address TEXT,
@@ -21,7 +21,7 @@ CREATE INDEX idx_warehouse_sites_org_id ON warehouse_sites(org_id);
 
 -- Zones are named areas within a site (Dry Storage, Cold Room, Shipping, etc.)
 CREATE TABLE warehouse_zones (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   site_id UUID NOT NULL REFERENCES warehouse_sites(id) ON DELETE CASCADE,
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -42,7 +42,7 @@ CREATE INDEX idx_warehouse_zones_site_id ON warehouse_zones(site_id);
 
 -- Racks / shelving units within a zone
 CREATE TABLE warehouse_racks (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   zone_id UUID NOT NULL REFERENCES warehouse_zones(id) ON DELETE CASCADE,
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   name TEXT NOT NULL,            -- e.g. "Rack A", "Shelf 1"
@@ -59,7 +59,7 @@ CREATE INDEX idx_warehouse_racks_zone_id ON warehouse_racks(zone_id);
 
 -- Individual bin locations (the actual storage spots)
 CREATE TABLE warehouse_bins (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   rack_id UUID NOT NULL REFERENCES warehouse_racks(id) ON DELETE CASCADE,
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   label TEXT NOT NULL,             -- e.g. "A-1-3" (Rack A, Level 1, Position 3)
@@ -80,7 +80,7 @@ CREATE INDEX idx_warehouse_bins_barcode ON warehouse_bins(barcode);
 
 -- What's currently in a bin (pallet/lot/product assignments)
 CREATE TABLE bin_contents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   bin_id UUID NOT NULL REFERENCES warehouse_bins(id) ON DELETE CASCADE,
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   -- Can hold a product, material lot, or batch

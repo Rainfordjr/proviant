@@ -10,7 +10,7 @@
 -- 1. SECTIONS TABLE
 -- ============================================================
 CREATE TABLE recipe_version_sections (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recipe_version_id UUID NOT NULL REFERENCES recipe_versions(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0,

@@ -24,7 +24,7 @@ CREATE POLICY "plans_read_all" ON plans FOR SELECT USING (true);
 -- 2. Add-on modules per org subscription
 -- Tracks extra modules a customer pays for beyond what their tier includes
 CREATE TABLE subscription_addons (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   module_slug TEXT NOT NULL REFERENCES modules(slug),
   is_active BOOLEAN NOT NULL DEFAULT true,
