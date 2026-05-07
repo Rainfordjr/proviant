@@ -748,7 +748,72 @@ INSERT INTO customers (id, org_id, name, contact_name, email, phone, address, ci
   ('11000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Capitol Hill Bistro', 'Marcus Johnson', 'chef@capitolhillbistro.com', '206-555-0202', '1501 Broadway', 'Seattle', 'WA', '98122', 'Prefers invoice by email. Net-30 terms.', true),
   ('11000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Costco Regional', 'Linda Park', 'buyer@costco.com', '425-555-0303', '999 Lake Dr', 'Issaquah', 'WA', '98027', 'Master case pallets only. Requires COA per lot.', true),
   ('11000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Fremont Coffee Co', 'Dave Hollister', 'dave@fremontcoffee.com', '206-555-0404', '3601 Fremont Ave N', 'Seattle', 'WA', '98103', NULL, true),
-  ('11000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Ballard Farmers Market', 'Amy Nguyen', 'vendor@ballardfm.org', '206-555-0505', NULL, 'Seattle', 'WA', NULL, 'Seasonal orders only — May through October.', false);
+  ('11000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Ballard Farmers Market', 'Amy Nguyen', 'vendor@ballardfm.org', '206-555-0505', NULL, 'Seattle', 'WA', NULL, 'Seasonal orders only — May through October.', false),
+  ('11000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'Green Lake Provisions', 'Rachel Kim', 'rachel@greenlakeprovisions.com', '206-555-0606', '7201 E Green Lake Dr N', 'Seattle', 'WA', '98115', NULL, true),
+  ('11000000-0000-0000-0000-000000000007', 'a0000000-0000-0000-0000-000000000001', 'University District Deli', 'Tom Brennan', 'tom@udeli.com', '206-555-0707', '4217 University Way NE', 'Seattle', 'WA', '98105', 'Closed Sundays. Buzz intercom at loading dock.', true),
+  ('11000000-0000-0000-0000-000000000008', 'a0000000-0000-0000-0000-000000000001', 'Redmond Tech Café', 'Jessica Wu', 'jessica@redmondtechcafe.com', '425-555-0808', '16150 NE 85th St', 'Redmond', 'WA', '98052', 'Large standing order Mon & Thu. Confirm 48 hrs out.', true),
+  ('11000000-0000-0000-0000-000000000009', 'a0000000-0000-0000-0000-000000000001', 'Bellevue Food Hall', 'Carlos Rivera', 'carlos@bellevuefoodhall.com', '425-555-0909', '575 Bellevue Square', 'Bellevue', 'WA', '98004', NULL, true),
+  ('11000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000001', 'Columbia City Kitchen', 'Maya Thompson', 'maya@columbiacitykitchen.com', '206-555-1010', '4866 Rainier Ave S', 'Seattle', 'WA', '98118', 'Prefers early morning drops before 7 AM.', true),
+  ('11000000-0000-0000-0000-000000000011', 'a0000000-0000-0000-0000-000000000001', 'Queen Anne Grocer', 'Patrick O''Brien', 'patrick@queenannegrocery.com', '206-555-1111', '2100 Queen Anne Ave N', 'Seattle', 'WA', '98109', NULL, true),
+  ('11000000-0000-0000-0000-000000000012', 'a0000000-0000-0000-0000-000000000001', 'South Lake Union Pantry', 'Nina Patel', 'nina@slupantry.com', '206-555-1212', '333 Westlake Ave N', 'Seattle', 'WA', '98109', 'Refrigerated items only — no ambient storage on site.', true),
+  ('11000000-0000-0000-0000-000000000013', 'a0000000-0000-0000-0000-000000000001', 'Eastlake Provisions', 'Mark Sandoval', 'mark@eastlakeprovisions.com', '206-555-1313', '2301 Eastlake Ave E', 'Seattle', 'WA', '98102', NULL, true),
+  ('11000000-0000-0000-0000-000000000014', 'a0000000-0000-0000-0000-000000000001', 'Georgetown Alehouse', 'Steve Kowalski', 'steve@georgetownalehouse.com', '206-555-1414', '5804 Airport Way S', 'Seattle', 'WA', '98108', 'Net-15 terms. COD if overdue.', true),
+  ('11000000-0000-0000-0000-000000000015', 'a0000000-0000-0000-0000-000000000001', 'West Seattle Market', 'Diane Larson', 'diane@westseattlemarket.com', '206-555-1515', '4459 California Ave SW', 'Seattle', 'WA', '98116', NULL, true),
+  ('11000000-0000-0000-0000-000000000016', 'a0000000-0000-0000-0000-000000000001', 'Kirkland Waterfront Café', 'James Park', 'james@kirklandwf.com', '425-555-1616', '25 Lake Shore Plaza', 'Kirkland', 'WA', '98033', 'Seasonal patio menu — volume doubles May–Sep.', true),
+  ('11000000-0000-0000-0000-000000000017', 'a0000000-0000-0000-0000-000000000001', 'Bellevue Food Co-op', 'Sharon Watts', 'sharon@bellevuecoop.com', '425-555-1717', '1400 140th Ave NE', 'Bellevue', 'WA', '98005', 'Organic certified products only.', true),
+  ('11000000-0000-0000-0000-000000000018', 'a0000000-0000-0000-0000-000000000001', 'Edmonds Harbor Deli', 'Robert Ferris', 'rob@edmondsdeli.com', '425-555-1818', '110 Railroad Ave', 'Edmonds', 'WA', '98020', NULL, true),
+  ('11000000-0000-0000-0000-000000000019', 'a0000000-0000-0000-0000-000000000001', 'Bothell Family Kitchen', 'Ann Summers', 'ann@bothellkitchen.com', '425-555-1919', '18315 Bothell Way NE', 'Bothell', 'WA', '98011', NULL, true),
+  ('11000000-0000-0000-0000-000000000020', 'a0000000-0000-0000-0000-000000000001', 'Shoreline Fresh Market', 'Kevin Li', 'kevin@shorelinefresh.com', '206-555-2020', '15711 Westminster Way N', 'Shoreline', 'WA', '98133', 'High-volume account — verify quantities before loading.', true),
+  ('11000000-0000-0000-0000-000000000021', 'a0000000-0000-0000-0000-000000000001', 'Renton Urban Pantry', 'Priya Nair', 'priya@rentonpantry.com', '425-555-2121', '232 Williams Ave S', 'Renton', 'WA', '98057', NULL, true),
+  ('11000000-0000-0000-0000-000000000022', 'a0000000-0000-0000-0000-000000000001', 'Kent Valley Provisions', 'Larry Hoffman', 'larry@kentvalleyprovisions.com', '253-555-2222', '625 W Smith St', 'Kent', 'WA', '98032', 'Forklift available at dock — pallet orders preferred.', true),
+  ('11000000-0000-0000-0000-000000000023', 'a0000000-0000-0000-0000-000000000001', 'Auburn Specialty Foods', 'Maria Gonzalez', 'maria@auburnspecialty.com', '253-555-2323', '1 Auburn Way S', 'Auburn', 'WA', '98001', NULL, true),
+  ('11000000-0000-0000-0000-000000000024', 'a0000000-0000-0000-0000-000000000001', 'Tacoma Food Hub', 'Frank DeLuca', 'frank@tacomafoodhub.com', '253-555-2424', '1102 Broadway', 'Tacoma', 'WA', '98402', 'Check-in required at front desk before unloading.', true),
+  ('11000000-0000-0000-0000-000000000025', 'a0000000-0000-0000-0000-000000000001', 'Phinney Ridge Kitchen', 'Chloe Adams', 'chloe@phinneyridgekitchen.com', '206-555-2525', '6532 Phinney Ave N', 'Seattle', 'WA', '98103', NULL, true),
+  ('11000000-0000-0000-0000-000000000026', 'a0000000-0000-0000-0000-000000000001', 'Madison Valley Grocery', 'David Kim', 'david@madisonvalleygrocery.com', '206-555-2626', '2910 E Madison St', 'Seattle', 'WA', '98112', NULL, true),
+  ('11000000-0000-0000-0000-000000000027', 'a0000000-0000-0000-0000-000000000001', 'Madrona Café', 'Sarah Williams', 'sarah@madronacafe.com', '206-555-2727', '1138 34th Ave', 'Seattle', 'WA', '98122', 'Same building as Capitol Hill Bistro route — combine if possible.', true),
+  ('11000000-0000-0000-0000-000000000028', 'a0000000-0000-0000-0000-000000000001', 'Rainier Valley Foods', 'Emmanuel Osei', 'emmanuel@rainiervalleyfoods.com', '206-555-2828', '3601 Rainier Ave S', 'Seattle', 'WA', '98118', NULL, true),
+  ('11000000-0000-0000-0000-000000000029', 'a0000000-0000-0000-0000-000000000001', 'Magnolia Market', 'Christine Lee', 'christine@magnoliamarket.com', '206-555-2929', '3214 W McGraw St', 'Seattle', 'WA', '98199', 'Narrow street — use cargo van only, no box trucks.', true),
+  ('11000000-0000-0000-0000-000000000030', 'a0000000-0000-0000-0000-000000000001', 'Northgate Commons Café', 'Ben Torres', 'ben@northgatecafe.com', '206-555-3030', '401 NE Northgate Way', 'Seattle', 'WA', '98125', NULL, true);
+
+-- Delivery routes
+INSERT INTO delivery_routes (id, org_id, name, description, day_of_week, driver_name, is_active) VALUES
+  ('d1000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Downtown Seattle', 'Core city stops: Pike/Cap Hill/Eastlake/Madrona', 'Mon, Wed, Fri', 'Carlos V.', true),
+  ('d1000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Eastside Loop', 'Bellevue, Kirkland, Redmond, Issaquah', 'Tue, Thu', 'Aisha R.', true),
+  ('d1000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'North Seattle', 'Fremont up through Shoreline and Northgate', 'Wednesday', 'Mike T.', true),
+  ('d1000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'South Sound', 'Renton, Kent, Auburn, Tacoma', 'Friday', 'Diane L.', true);
+
+-- Downtown Seattle stops
+INSERT INTO delivery_route_stops (route_id, org_id, customer_id, stop_order, notes) VALUES
+  ('d1000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000001', 1, 'Side entrance on Pike — ring bell'),
+  ('d1000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000013', 2, NULL),
+  ('d1000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000002', 3, NULL),
+  ('d1000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000027', 4, NULL),
+  ('d1000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000026', 5, NULL),
+  ('d1000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000012', 6, NULL);
+
+-- Eastside Loop stops
+INSERT INTO delivery_route_stops (route_id, org_id, customer_id, stop_order, notes) VALUES
+  ('d1000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000009', 1, NULL),
+  ('d1000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000017', 2, 'Organic cert required'),
+  ('d1000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000016', 3, NULL),
+  ('d1000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000008', 4, 'Call ahead 30 min'),
+  ('d1000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000003', 5, 'Pallet only — have COA ready');
+
+-- North Seattle stops
+INSERT INTO delivery_route_stops (route_id, org_id, customer_id, stop_order, notes) VALUES
+  ('d1000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000004', 1, NULL),
+  ('d1000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000025', 2, NULL),
+  ('d1000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000006', 3, NULL),
+  ('d1000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000007', 4, 'Buzz intercom at dock'),
+  ('d1000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000020', 5, 'Large order — verify quantities'),
+  ('d1000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000030', 6, NULL);
+
+-- South Sound stops
+INSERT INTO delivery_route_stops (route_id, org_id, customer_id, stop_order, notes) VALUES
+  ('d1000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000021', 1, NULL),
+  ('d1000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000022', 2, 'Pallet orders preferred'),
+  ('d1000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000023', 3, NULL),
+  ('d1000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', '11000000-0000-0000-0000-000000000024', 4, 'Check in at front desk');
 
 -- Orders (linked to customers)
 INSERT INTO orders (id, org_id, order_number, customer_name, customer_email, customer_id, status, ordered_at) VALUES

@@ -347,6 +347,7 @@ export const SIDEBAR_NAV: NavItem[] = [
     children: [
       { title: "All Customers", href: "/customers", icon: "List", permission: "customers.view" },
       { title: "Add Customer", href: "/customers/new", icon: "Plus", permission: "customers.create" },
+      { title: "Delivery Routes", href: "/customers/routes", icon: "MapPin", permission: "customers.view" },
       { title: "Receivables", href: "/accounting/receivables", icon: "Wallet", permission: "customer_billing.view" },
     ],
   },
