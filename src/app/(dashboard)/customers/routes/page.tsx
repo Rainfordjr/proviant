@@ -1,12 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, checkPermission } from "@/lib/permissions";
 import Link from "next/link";
-import { MapPin, Truck, User, Hash } from "lucide-react";
-
-const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+import { MapPin, Truck, User, Hash, Plus } from "lucide-react";
 
 export default async function DeliveryRoutesPage() {
   await requirePermission("customers.view");
+  const canEdit = await checkPermission("customers.edit");
 
   const supabase = await createClient();
 
@@ -34,15 +33,16 @@ export default async function DeliveryRoutesPage() {
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">{route.name}</h2>
+            <Link href={`/customers/routes/${route.id}`}
+              className="text-base font-semibold text-blue-600 hover:text-blue-800">
+              {route.name}
+            </Link>
             {route.description && (
               <p className="mt-0.5 text-sm text-gray-500">{route.description}</p>
             )}
           </div>
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-            route.is_active
-              ? "bg-green-50 text-green-700"
-              : "bg-gray-100 text-gray-500"
+            route.is_active ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
           }`}>
             {route.is_active ? "Active" : "Inactive"}
           </span>
@@ -76,10 +76,8 @@ export default async function DeliveryRoutesPage() {
                 </span>
                 <div className="min-w-0">
                   {stop.customers ? (
-                    <Link
-                      href={`/customers/${stop.customers.id}`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                    >
+                    <Link href={`/customers/${stop.customers.id}`}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-800">
                       {stop.customers.name}
                     </Link>
                   ) : (
@@ -102,7 +100,7 @@ export default async function DeliveryRoutesPage() {
             ))}
           </ol>
         ) : (
-          <p className="px-6 pb-4 text-sm text-gray-400 italic">No stops assigned.</p>
+          <p className="px-6 pb-4 text-sm text-gray-400 italic">No stops yet.</p>
         )}
       </div>
     );
@@ -115,15 +113,25 @@ export default async function DeliveryRoutesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Delivery Routes</h1>
           <p className="text-sm text-gray-500">Customer delivery runs and stop order</p>
         </div>
+        {canEdit && (
+          <Link href="/customers/routes/new"
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            <Plus size={16} /> New Route
+          </Link>
+        )}
       </div>
 
       {(routes || []).length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-12 text-center shadow-sm">
           <MapPin size={48} className="mx-auto mb-4 text-gray-300" />
           <h3 className="text-lg font-semibold text-gray-900">No delivery routes yet</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Delivery routes are created in the database. Contact your administrator to set them up.
-          </p>
+          <p className="mt-1 text-sm text-gray-500">Create your first route to organize customer deliveries.</p>
+          {canEdit && (
+            <Link href="/customers/routes/new"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+              <Plus size={16} /> New Route
+            </Link>
+          )}
         </div>
       ) : (
         <>
