@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   // via http://10.0.0.98:3000 instead of localhost, which prevents client-side
   // hydration — pages render but useEffects (like loadPlans) never fire.
   allowedDevOrigins: ['10.0.0.98'],
+
+  // Bundle docs/ into the serverless function output so /admin/api-docs
+  // can read API.md at runtime on Vercel.
+  outputFileTracingIncludes: {
+    '/admin/api-docs': ['./docs/**/*'],
+  },
 };
 
 export default nextConfig;

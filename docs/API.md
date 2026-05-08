@@ -1,352 +1,1243 @@
-# Proviant API
+# Proviant API Reference
 
-This document covers every Proviant `/api/*` endpoint. Direct CRUD on most domain tables also works through Supabase's auto-generated REST API at `<SUPABASE_URL>/rest/v1/<table>`, but the routes here are the canonical, business-rule-enforcing surface.
+A complete reference for the Proviant HTTP API. All endpoints accept and return JSON. Every data resource is tenant-scoped: each request resolves to exactly one organization, and you never see (or can write to) another org's rows.
 
-## Base URL
+This document was extracted directly from the route handlers in `src/app/api/`. If something here disagrees with the code, the code wins.
 
-`http://10.0.0.98:3000/api` for local dev (use whatever host your `npm run dev` is bound to).
+---
+
+## Overview
+
+- **Base URL** (production): `https://proviant-eight.vercel.app`
+- **Base URL** (local dev): `http://localhost:3000`
+- All requests/responses use `Content-Type: application/json`.
+- Examples use `curl` with the `X-API-Key` header. Substitute `Authorization: Bearer <jwt>` or rely on browser cookies as appropriate (see [Authentication](#authentication)).
+- Tenant scoping: every endpoint that touches data filters by your `org_id`, derived from your auth method. There is no way to specify "another org" in a request.
+
+---
 
 ## Authentication
 
-Every state-changing endpoint requires authentication. Three methods are supported:
+Every protected endpoint runs through `requireApiAuth(request, perm)` (see `src/lib/api-auth.ts`), which accepts three credential types in priority order. A few endpoints (most of `customer-billing/*`) instead use `requirePermissionApi(perm)` which **only** accepts user-backed auth (cookies or Bearer JWT) — those endpoints are flagged below.
 
-### 1. Cookie session (browser)
+### 1. `X-API-Key` (recommended for scripts and integrations)
 
-What the UI uses. Nothing extra needed when calling from the same origin in a browser.
+Mint keys via the [API key management endpoints](#api-keys). Each key carries a `scopes` array; a scope of `*` grants every permission, otherwise the key only passes checks for the specific permission codes you list.
 
-### 2. Bearer JWT (scripts, dev tools)
-
-Get a JWT from `POST /api/auth/login`, then send it on every subsequent request:
-
-```
-Authorization: Bearer <access_token>
+```http
+X-API-Key: pk_<48-char-token>
 ```
 
-The JWT carries the user's identity; the same RBAC permission system applies as for the UI.
+API keys have no human user attached, so a few endpoints that record `recorded_by` or similar fields reject API-key auth (notably `POST /api/compliance-logs`).
 
-### 3. API key (production integrations, automated testing)
+### 2. `Authorization: Bearer <jwt>`
 
-Mint a key via `POST /api/auth/api-keys`. Send it on every request:
+Trade an email + password for an access token via [`POST /api/auth/login`](#post-apiauthlogin). Returns a Supabase access JWT plus a refresh token; renew via [`POST /api/auth/refresh`](#post-apiauthrefresh) before `expires_at`.
 
+```http
+Authorization: Bearer eyJhbGc...
 ```
-X-API-Key: pk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
 
-API keys carry a `scopes` array of permission codes. A scope of `"*"` is wildcard. The key is org-scoped — every action it takes is constrained to the org that minted it.
+### 3. Cookie session
 
-## Response shape
+What the web UI uses. The Supabase auth cookies are set automatically when you log in through the browser. No header needed; just send the cookies. `requireApiAuth` falls back to this when neither `X-API-Key` nor `Authorization` is present.
 
-Every successful response is JSON. List endpoints return:
+### Permissions
+
+Every protected endpoint requires a specific permission code (e.g., `customers.view`, `orders.create`, `customer_billing.manage`). Permissions are granted to roles, and roles are assigned to users via the RBAC system. For API keys, the `scopes` array IS the permission set — it bypasses the role system entirely.
+
+The permission codes for each endpoint are documented inline below. Missing-permission failures return `403 { "error": "Missing permission: <code>" }`.
+
+### Auth failure modes
+
+| Status | Body | Meaning |
+| --- | --- | --- |
+| 401 | `{"error":"Not authenticated"}` | No valid credential supplied. |
+| 401 | `{"error":"Invalid API key"}` | API key prefix unknown or hash mismatch. |
+| 401 | `{"error":"API key has been revoked"}` | Key was deleted/revoked. |
+| 401 | `{"error":"Invalid bearer token"}` | JWT failed validation. |
+| 403 | `{"error":"User is not part of any organization"}` | User profile has no `org_id`. |
+| 403 | `{"error":"API key missing required scope: <code>"}` | Key lacks the permission. |
+| 403 | `{"error":"Missing permission: <code>"}` | User lacks the role permission. |
+
+---
+
+## Conventions (CRUD endpoints)
+
+Most resource endpoints (customers, products, suppliers, raw-materials, recipes, batches, delivery-routes, plus the LIST handlers for orders and compliance-logs) are generated by `makeCrudRoutes` in `src/lib/api-crud.ts`. They all share these conventions.
+
+### Listing — `GET /api/<resource>`
+
+| Param | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `limit` | int | `100` | Clamped to `[1, 500]`. |
+| `offset` | int | `0` | Non-negative. |
+| `sort` | string | `created_at` (or per-endpoint default) | Any valid column. |
+| `order` | `asc` \| `desc` | `desc` | |
+| `q` | string | — | Free-text search (case-insensitive `ILIKE %q%`) over the endpoint's `searchableFields`. `%` and `_` are escaped. |
+| `<field>` | string \| `true` \| `false` | — | Any whitelisted filterable field (e.g. `?is_active=true`). String `"true"`/`"false"` is coerced to boolean. |
+
+Response:
 
 ```json
 {
-  "data": [ ... ],
-  "pagination": { "limit": 100, "offset": 0, "total": 245 }
+  "data": [ /* rows */ ],
+  "pagination": {
+    "limit": 100,
+    "offset": 0,
+    "total": 42
+  }
 }
 ```
 
-Single-row endpoints return:
+### Get one — `GET /api/<resource>/[id]`
 
 ```json
-{ "data": { ... } }
+{ "data": { /* row */ } }
 ```
 
-Errors return:
+`404 {"error":"Not found"}` if the id doesn't exist in your org.
+
+### Create — `POST /api/<resource>`
+
+Request body validated against a Zod schema (documented per-endpoint). On success: `201 { "data": { /* row */ } }`. The created row's `org_id` is forced from your auth context — you cannot override it.
+
+### Update — `PATCH /api/<resource>/[id]`
+
+Partial update; send only the fields you want to change. `200 { "data": { /* row */ } }`. Returns `404` if the row doesn't exist in your org. `id` and `org_id` are stripped from any submitted body and cannot be changed.
+
+### Delete — `DELETE /api/<resource>/[id]`
+
+`200 { "success": true }` or `404 {"error":"Not found"}`.
+
+### Error response shape
+
+All error responses are `{ "error": string }`. Validation errors additionally include an `issues` array:
 
 ```json
-{ "error": "Human-readable message", "issues": [ ... ] }
+{
+  "error": "Invalid request body",
+  "issues": [
+    { "path": "name", "message": "Required" },
+    { "path": "items.0.quantity", "message": "Number must be greater than 0" }
+  ]
+}
 ```
 
-`issues` only appears for Zod validation failures (HTTP 400) and contains `[{ "path": "field.name", "message": "..." }]`.
+| Status | When |
+| --- | --- |
+| 400 | Validation failure, invalid JSON body, business-rule rejection (e.g. applying payment to a voided invoice). |
+| 401 | Not authenticated. |
+| 403 | Authenticated but missing the required permission/scope. |
+| 404 | Resource doesn't exist in your org. |
+| 409 | Idempotency conflict (see below). |
+| 422 | Status transition not allowed (orders only). |
+| 500 | Unhandled Supabase / gateway error. |
+| 502 | Upstream payment gateway failure. |
+
+### Idempotency (financial mutations only)
+
+Endpoints that record money movement support an optional `Idempotency-Key` header. Repeating the same key replays the cached response instead of running the work twice. Applies to: `POST /api/orders`, `POST /api/customer-billing/payments`, `POST /api/customer-billing/charge-card`, `POST /api/customer-billing/charge-saved`, `POST /api/customer-billing/initiate-ach`.
+
+```http
+Idempotency-Key: 7e3a-... (any unique string)
+```
+
+A duplicate request returns the original response with `status_code` preserved. A key that's still in flight returns `409 {"error":"Request with this Idempotency-Key is still processing"}`.
+
+---
 
 ## Auth endpoints
 
-### `POST /api/auth/login`
+### Sign up
 
-Trade email + password for a session token.
+#### POST /api/auth/signup
 
-```json
-// request
-{ "email": "admin@proviant.dev", "password": "admin123" }
-
-// response
-{
-  "access_token": "eyJhbGc...",
-  "refresh_token": "...",
-  "expires_at": 1735689600,
-  "user": { "id": "uuid", "email": "admin@proviant.dev" }
-}
-```
-
-### `POST /api/auth/refresh`
-
-Renew an expired access token.
-
-```json
-// request
-{ "refresh_token": "..." }
-
-// response: same shape as login (without user)
-```
-
-### `POST /api/auth/signup`
-
-Public. Creates a new user, organization, admin role, and trial subscription.
+Public. Creates a new auth user, organization, admin role with all permissions, default subscription (14-day trial), and activates core modules.
 
 ```json
 {
-  "email": "user@example.com",
-  "password": "minimum-8-chars",
-  "fullName": "Jane Doe",
-  "orgName": "Acme Bakery",
-  "planId": "uuid (optional)",
-  "referralCode": "ACME-1234 (optional)"
+  "email": "founder@acme.com",
+  "password": "at-least-8-chars",
+  "fullName": "Jane Founder",
+  "orgName": "Acme Foods",
+  "planId": "uuid-of-billing-plan",
+  "referralCode": "ACME-1234"
 }
 ```
 
-### `POST /api/auth/invite`
+`planId` is optional (defaults to free trial). `referralCode` is optional and gives the referrer a 10% credit if valid.
 
-Invite a teammate. Requires `users.create` permission.
-
-```json
-{ "email": "teammate@example.com", "fullName": "John Smith", "roleId": "uuid (optional)" }
-```
-
-## API keys
-
-Requires `api_keys.manage` permission.
-
-### `GET /api/auth/api-keys`
-
-List the org's keys (with values masked).
-
-### `POST /api/auth/api-keys`
-
-Mint a new key. **The plaintext key is shown only in this response.**
+Response:
 
 ```json
-// request
-{
-  "name": "Claude testing",
-  "scopes": ["customers.view", "customers.create", "orders.view", "orders.create"],
-  "notes": "Used by automated API tests"
-}
-
-// response
 {
   "success": true,
-  "key": { "id": "uuid", "name": "Claude testing", "key_prefix": "pk_a1b2c3", "scopes": [...] },
-  "plaintext": "pk_a1b2c3d4e5...",
-  "warning": "Save this key now — it will not be shown again."
+  "user": { "id": "uuid", "email": "founder@acme.com" },
+  "org":  { "id": "uuid", "name": "Acme Foods" }
 }
 ```
 
-For full access, use `["*"]` as the scope. For read-only, list only the `*.view` permissions you care about.
+```bash
+curl -X POST https://proviant-eight.vercel.app/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"founder@acme.com","password":"hunter2hunter2","fullName":"Jane","orgName":"Acme"}'
+```
 
-### `DELETE /api/auth/api-keys/[id]`
+### Log in
 
-Revoke a key (soft delete).
+#### POST /api/auth/login
 
-## CRUD entities
+Headless email+password login. Returns a Supabase session for use as `Authorization: Bearer <jwt>`.
 
-Each of these supports the same five operations:
+```json
+{ "email": "you@example.com", "password": "..." }
+```
 
-- `GET    /api/<resource>          ` — list (supports `?limit=`, `?offset=`, `?sort=`, `?order=asc|desc`, `?q=` text search, plus exact-match filters)
-- `POST   /api/<resource>          ` — create
-- `GET    /api/<resource>/[id]     ` — fetch one
-- `PATCH  /api/<resource>/[id]     ` — partial update
-- `DELETE /api/<resource>/[id]     ` — delete
-
-Resources currently exposed:
-
-| Resource         | Path                  | Permissions                                       | Searchable             | Filterable               |
-|------------------|-----------------------|---------------------------------------------------|------------------------|--------------------------|
-| Customers        | `/api/customers`      | `customers.view/create/edit/delete`               | name, contact_name, email | is_active             |
-| Products         | `/api/products`       | `products.view/create/edit/delete`                | name, sku, description | is_active, category      |
-| Recipes          | `/api/recipes`        | `recipes.view/create/edit/delete`                 | name, description      | is_active                |
-| Batches          | `/api/batches`        | `batches.view/create/edit/delete`                 | batch_number, notes    | status, product_id       |
-| Raw materials    | `/api/raw-materials`  | `materials.view/create/edit/delete`               | name, description      | is_active, supplier_id   |
-| Suppliers        | `/api/suppliers`      | `suppliers.view/create/edit`                      | name, contact_name, email | is_active             |
-| Compliance logs  | `/api/compliance-logs`| `compliance.view/create/edit`                     | value, ccp_id, notes   | type                     |
-
-### Body shapes
-
-The Zod schemas in each route file are the source of truth — see `src/app/api/<resource>/route.ts`. Quick reference:
-
-**customers**: `name` (required), `contact_name?`, `email?`, `phone?`, `address?`, `city?`, `state?`, `zip?`, `notes?`, `is_active?`
-
-**products**: `name` (required), `sku` (required, unique per org), `category?`, `unit?`, `description?`, `is_active?`
-
-**recipes**: `name` (required), `description?`, `instructions?`, `yield_quantity?`, `yield_unit?`, `is_active?`
-
-**batches**: `product_id` (required), `batch_number` (required), `status?`, `quantity_produced?`, `produced_at?`, `notes?`
-
-**raw-materials**: `name` (required), `supplier_id?`, `unit?`, `reorder_point?`, `current_stock?`, `description?`, `is_active?`
-
-**suppliers**: `name` (required), `contact_name?`, `email?`, `phone?`, `address?`, `notes?`, `is_active?`
-
-**compliance-logs**: `type` (one of `temperature`, `sanitation`, `allergen`, `ccp`, `other`), `ccp_id?`, `value` (required), `notes?` — also requires user-backed auth (recorded_by).
-
-## Orders
-
-Orders have business rules beyond plain CRUD.
-
-### `POST /api/orders`
-
-Create an order with line items, atomically. `Idempotency-Key` header is honored.
+Response:
 
 ```json
 {
-  "order_number": "ORD-2026-0001",
-  "customer_id": "uuid (optional, walk-in if omitted)",
-  "customer_name": "Pike Place Market Cafe",
-  "customer_email": "orders@pikeplace.com",
-  "status": "pending (optional, defaults to pending)",
-  "notes": "Deliver by Friday",
-  "ordered_at": "2026-04-29T10:00:00Z (optional)",
-  "items": [
-    { "product_id": "uuid", "quantity": 5, "unit_price": 12.50 },
-    { "product_id": "uuid", "quantity": 2, "unit_price": 8.00 }
+  "access_token": "eyJhbGc...",
+  "refresh_token": "v1.M...",
+  "expires_at": 1715000000,
+  "expires_in": 3600,
+  "token_type": "bearer",
+  "user": { "id": "uuid", "email": "you@example.com" }
+}
+```
+
+`401 {"error":"Invalid email or password"}` on failure.
+
+```bash
+curl -X POST https://proviant-eight.vercel.app/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"..."}'
+```
+
+### Refresh token
+
+#### POST /api/auth/refresh
+
+```json
+{ "refresh_token": "v1.M..." }
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJhbGc...",
+  "refresh_token": "v1.N...",
+  "expires_at": 1715003600,
+  "expires_in": 3600
+}
+```
+
+### Invite a user
+
+#### POST /api/auth/invite
+
+Permission required: `users.create`. Auth: cookie or Bearer (uses `requirePermissionApi`).
+
+Creates a teammate in your org, sets a temporary password, optionally assigns a role.
+
+```json
+{
+  "email": "ops@acme.com",
+  "fullName": "Pat Ops",
+  "roleId": "uuid-of-role"
+}
+```
+
+`fullName` and `roleId` are optional.
+
+Response:
+
+```json
+{
+  "success": true,
+  "user": { "id": "uuid", "email": "ops@acme.com", "fullName": "Pat Ops" },
+  "tempPassword": "TempXxxxYyy!1"
+}
+```
+
+The temp password is shown once — share it out-of-band with the new user; they should change it on first login.
+
+### API keys
+
+Permission required: `api_keys.manage` for all three endpoints.
+
+#### GET /api/auth/api-keys
+
+List your org's API keys with secrets masked.
+
+```json
+{
+  "keys": [
+    {
+      "id": "uuid",
+      "name": "Nightly inventory sync",
+      "key_prefix": "pk_aBcD",
+      "scopes": ["products.view","raw_materials.view"],
+      "created_at": "2026-04-12T22:00:00Z",
+      "last_used_at": "2026-05-07T03:14:01Z",
+      "revoked_at": null,
+      "notes": "Owned by ops scripts repo",
+      "preview": "pk_aBcD••••••"
+    }
   ]
 }
 ```
 
-### `POST /api/orders/[id]/transition-status`
+#### POST /api/auth/api-keys
 
-Move an order through its workflow. The legal transitions are:
-
-- `pending` → `confirmed`, `cancelled`
-- `confirmed` → `processing`, `cancelled`
-- `processing` → `shipped`, `cancelled`
-- `shipped` → `delivered`, `cancelled`
-- `delivered`, `cancelled` → terminal
-
-Skipping steps returns 422. Transitioning to `shipped` sets `shipped_at = now()`. Transitioning to `confirmed` triggers the auto-invoice flow if the order has a `customer_id`.
+Mint a new key. **The plaintext is returned once; persist it immediately.**
 
 ```json
-// request
-{ "status": "confirmed" }
-
-// response
-{ "data": { ...updated order... } }
+{
+  "name": "Nightly inventory sync",
+  "scopes": ["products.view","raw_materials.view"],
+  "notes": "Owned by ops scripts repo"
+}
 ```
 
-### `GET/PATCH/DELETE /api/orders/[id]`
+Use `["*"]` for `scopes` to grant every permission. `notes` is optional.
 
-Standard CRUD. PATCH does not allow editing `status` — use the transition endpoint.
+Response:
+
+```json
+{
+  "success": true,
+  "key": {
+    "id": "uuid",
+    "name": "Nightly inventory sync",
+    "key_prefix": "pk_aBcD",
+    "scopes": ["products.view","raw_materials.view"],
+    "created_at": "2026-05-07T03:00:00Z",
+    "notes": "Owned by ops scripts repo"
+  },
+  "plaintext": "pk_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789",
+  "warning": "Save this key now — it will not be shown again. Use it as the X-API-Key header."
+}
+```
+
+```bash
+curl -X POST https://proviant-eight.vercel.app/api/auth/api-keys \
+  -H "X-API-Key: pk_..." \
+  -H "Content-Type: application/json" \
+  -d '{"name":"sync","scopes":["*"]}'
+```
+
+#### DELETE /api/auth/api-keys/[id]
+
+Soft-revoke (sets `revoked_at = now()`). Past audit attribution preserved.
+
+Response: `{"success": true}` or `{"success": true, "alreadyRevoked": true}` or `404 {"error":"API key not found"}`.
+
+---
+
+## Resource endpoints
+
+### Customers
+
+| Operation | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `customers.view` | GET | `/api/customers`, `/api/customers/[id]` |
+| Create | `customers.create` | POST | `/api/customers` |
+| Edit | `customers.edit` | PATCH | `/api/customers/[id]` |
+| Delete | `customers.delete` | DELETE | `/api/customers/[id]` |
+
+**Listing:** searchable fields `name, contact_name, email`. Filterable: `is_active`. Default sort: `created_at desc`.
+
+**Body schema (create):**
+
+```json
+{
+  "name": "Pike Place Cafe",
+  "contact_name": "Sam Roaster",
+  "email": "sam@pikecafe.com",
+  "phone": "+1-206-555-0100",
+  "address": "1912 Pike Pl",
+  "city": "Seattle",
+  "state": "WA",
+  "zip": "98101",
+  "notes": "Side-entrance delivery only",
+  "is_active": true
+}
+```
+
+Only `name` is required; all other fields are optional and may be `null`. PATCH accepts the same shape with all fields optional.
+
+```bash
+# List
+curl -H "X-API-Key: pk_..." \
+  "https://proviant-eight.vercel.app/api/customers?q=pike&is_active=true&limit=20"
+
+# Get one
+curl -H "X-API-Key: pk_..." \
+  https://proviant-eight.vercel.app/api/customers/<id>
+
+# Create
+curl -X POST -H "X-API-Key: pk_..." -H "Content-Type: application/json" \
+  -d '{"name":"Pike Place Cafe","city":"Seattle","state":"WA"}' \
+  https://proviant-eight.vercel.app/api/customers
+
+# Update
+curl -X PATCH -H "X-API-Key: pk_..." -H "Content-Type: application/json" \
+  -d '{"phone":"+1-206-555-9999"}' \
+  https://proviant-eight.vercel.app/api/customers/<id>
+
+# Delete
+curl -X DELETE -H "X-API-Key: pk_..." \
+  https://proviant-eight.vercel.app/api/customers/<id>
+```
+
+### Products
+
+| Op | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `products.view` | GET | `/api/products`, `/api/products/[id]` |
+| Create | `products.create` | POST | `/api/products` |
+| Edit | `products.edit` | PATCH | `/api/products/[id]` |
+| Delete | `products.delete` | DELETE | `/api/products/[id]` |
+
+**Listing:** searchable `name, sku, description`. Filterable: `is_active, category`. Default sort: `created_at desc`.
+
+**Body schema (create):**
+
+```json
+{
+  "name": "Sourdough Loaf",
+  "sku": "BR-SDB-001",
+  "category": "bakery",
+  "unit": "loaf",
+  "description": "1 lb naturally leavened",
+  "is_active": true
+}
+```
+
+`name` and `sku` are required.
+
+```bash
+curl -X POST -H "X-API-Key: pk_..." -H "Content-Type: application/json" \
+  -d '{"name":"Sourdough Loaf","sku":"BR-SDB-001","unit":"loaf"}' \
+  https://proviant-eight.vercel.app/api/products
+```
+
+### Raw materials
+
+| Op | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `materials.view` | GET | `/api/raw-materials`, `/api/raw-materials/[id]` |
+| Create | `materials.create` | POST | `/api/raw-materials` |
+| Edit | `materials.edit` | PATCH | `/api/raw-materials/[id]` |
+| Delete | `materials.delete` | DELETE | `/api/raw-materials/[id]` |
+
+**Listing:** searchable `name, description`. Filterable: `is_active, supplier_id`. Default sort: `created_at desc`.
+
+**Body schema (create):**
+
+```json
+{
+  "name": "Bread Flour",
+  "supplier_id": "uuid-or-null",
+  "unit": "kg",
+  "reorder_point": 50,
+  "current_stock": 200,
+  "description": "Pacific NW Flour Co. AP",
+  "is_active": true
+}
+```
+
+`name` is required. Numeric fields must be `≥ 0`. `supplier_id` may be `null`.
+
+### Suppliers
+
+| Op | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `suppliers.view` | GET | `/api/suppliers`, `/api/suppliers/[id]` |
+| Create | `suppliers.create` | POST | `/api/suppliers` |
+| Edit | `suppliers.edit` | PATCH | `/api/suppliers/[id]` |
+| Delete | `suppliers.edit` | DELETE | `/api/suppliers/[id]` |
+
+Note: `suppliers.edit` is reused for delete (no separate `suppliers.delete` perm exists).
+
+**Listing:** searchable `name, contact_name, email`. Filterable: `is_active`. Default sort: `created_at desc`.
+
+**Body schema (create):**
+
+```json
+{
+  "name": "Pacific NW Flour Co.",
+  "contact_name": "Sarah Chen",
+  "email": "sarah@pnwflour.com",
+  "phone": "+1-206-555-0101",
+  "address": "...",
+  "notes": "Net 30 terms",
+  "is_active": true
+}
+```
+
+Only `name` is required.
+
+### Recipes
+
+| Op | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `recipes.view` | GET | `/api/recipes`, `/api/recipes/[id]` |
+| Create | `recipes.create` | POST | `/api/recipes` |
+| Edit | `recipes.edit` | PATCH | `/api/recipes/[id]` |
+| Delete | `recipes.delete` | DELETE | `/api/recipes/[id]` |
+
+**Listing:** searchable `name, description`. Filterable: `is_active`. Default sort: `created_at desc`.
+
+**Body schema (create):**
+
+```json
+{
+  "name": "Sourdough Master Recipe",
+  "description": "100% whole wheat",
+  "instructions": "Step 1: ...",
+  "yield_quantity": 12,
+  "yield_unit": "loaves",
+  "is_active": true
+}
+```
+
+Only `name` is required. Recipe ingredients/sections are managed in the database — there's no public endpoint for them in this API; manage them via the web UI or direct DB.
+
+### Batches
+
+| Op | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `batches.view` | GET | `/api/batches`, `/api/batches/[id]` |
+| Create | `batches.create` | POST | `/api/batches` |
+| Edit | `batches.edit` | PATCH | `/api/batches/[id]` |
+| Delete | `batches.delete` | DELETE | `/api/batches/[id]` |
+
+**Listing:** searchable `batch_number, notes`. Filterable: `status, product_id`. Default sort: `created_at desc`.
+
+**Statuses:** `planned | in_progress | completed | on_hold | rejected`.
+
+**Body schema (create):**
+
+```json
+{
+  "product_id": "uuid",
+  "batch_number": "B-2026-0042",
+  "status": "planned",
+  "quantity_produced": 24,
+  "produced_at": "2026-05-07T08:00:00Z",
+  "notes": "First run on new oven"
+}
+```
+
+`product_id` and `batch_number` are required. `quantity_produced` and `produced_at` may be `null`.
+
+`beforeCreate` hook auto-fills `created_by` with the authenticated user's id (or `null` for API-key auth).
+
+### Orders
+
+| Op | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `orders.view` | GET | `/api/orders`, `/api/orders/[id]` |
+| Create | `orders.create` | POST | `/api/orders` (custom — atomic with line items) |
+| Edit | `orders.edit` | PATCH | `/api/orders/[id]` |
+| Edit (status) | `orders.edit` | POST | `/api/orders/[id]/transition-status` |
+| Delete | `orders.delete` | DELETE | `/api/orders/[id]` |
+
+**Listing:** searchable `order_number, customer_name`. Filterable: `status, customer_id`. Default sort: `ordered_at desc`. Get-one returns the order with embedded `order_items`.
+
+**Statuses:** `pending | confirmed | processing | shipped | delivered | cancelled`.
+
+#### POST /api/orders
+
+Custom handler — creates the order header AND line items atomically via the `create_order_with_items` SQL function. Wrapped in idempotency.
+
+```json
+{
+  "order_number": "PO-2026-0001",
+  "customer_id": "uuid-or-null",
+  "customer_name": "Pike Place Cafe",
+  "customer_email": "sam@pikecafe.com",
+  "status": "pending",
+  "notes": "Tuesday delivery",
+  "ordered_at": "2026-05-07T15:00:00Z",
+  "items": [
+    {
+      "product_id": "uuid",
+      "quantity": 12,
+      "unit_price": 4.50,
+      "batch_id": "uuid-or-null"
+    }
+  ]
+}
+```
+
+Required: `order_number`, `customer_name`, and at least one item (with `product_id` and `quantity > 0`).
+
+If `customer_id` is supplied, it must belong to your org or you'll get `404 {"error":"Customer not found in your organization"}`.
+
+Response: `201 { "data": { ...order, order_items: [...] } }`.
+
+```bash
+curl -X POST -H "X-API-Key: pk_..." -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{
+    "order_number":"PO-2026-0001",
+    "customer_name":"Pike Place Cafe",
+    "items":[{"product_id":"<uuid>","quantity":12,"unit_price":4.50}]
+  }' \
+  https://proviant-eight.vercel.app/api/orders
+```
+
+#### PATCH /api/orders/[id]
+
+Updates order header fields only. Status changes are explicitly **not** allowed here — use the transition endpoint.
+
+Editable fields: `order_number, customer_id, customer_name, customer_email, notes`.
+
+#### POST /api/orders/[id]/transition-status
+
+Move an order through its workflow. Server-side enforces legal transitions:
+
+| Current | Allowed next |
+| --- | --- |
+| `pending` | `confirmed`, `cancelled` |
+| `confirmed` | `processing`, `cancelled` |
+| `processing` | `shipped`, `cancelled` |
+| `shipped` | `delivered`, `cancelled` |
+| `delivered` | (terminal) |
+| `cancelled` | (terminal) |
+
+Side effects: transitioning to `shipped` sets `shipped_at = now()`. A DB trigger auto-creates a customer invoice when status flips to `confirmed` (if a customer is linked).
+
+```json
+{ "status": "confirmed" }
+```
+
+- `200 { "data": { ...order }, "unchanged"?: true }` on success or no-op.
+- `422 { "error": "Cannot transition from \"X\" to \"Y\".", "allowed_transitions": [...] }` for illegal transitions.
+
+```bash
+curl -X POST -H "X-API-Key: pk_..." -H "Content-Type: application/json" \
+  -d '{"status":"confirmed"}' \
+  https://proviant-eight.vercel.app/api/orders/<id>/transition-status
+```
+
+### Compliance logs
+
+| Op | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `compliance.view` | GET | `/api/compliance-logs`, `/api/compliance-logs/[id]` |
+| Create | `compliance.create` | POST | `/api/compliance-logs` |
+| Edit | `compliance.edit` | PATCH | `/api/compliance-logs/[id]` |
+| Delete | `compliance.edit` | DELETE | `/api/compliance-logs/[id]` |
+
+**Listing:** searchable `value, ccp_id, notes`. Filterable: `type`. Default sort: `created_at desc`.
+
+**Types:** `temperature | sanitation | allergen | ccp | other`.
+
+**Body schema (create):**
+
+```json
+{
+  "type": "temperature",
+  "ccp_id": "CCP-1",
+  "value": "38°F",
+  "notes": "Walk-in #2, post-shift"
+}
+```
+
+`type` and `value` are required. `ccp_id` and `notes` are optional/nullable.
+
+> **API-key auth is rejected on POST.** `compliance_logs.recorded_by` is NOT NULL and must reference a real user. The endpoint returns `400` if you authenticate with `X-API-Key`. Use a Bearer JWT or session cookie to record compliance events.
+
+### Delivery routes
+
+| Op | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `customers.view` | GET | `/api/delivery-routes`, `/api/delivery-routes/[id]` |
+| Create | `customers.edit` | POST | `/api/delivery-routes` |
+| Edit | `customers.edit` | PATCH | `/api/delivery-routes/[id]` |
+| Delete | `customers.edit` | DELETE | `/api/delivery-routes/[id]` |
+
+(Delivery routes share the customers permission family — there's no separate `delivery_routes.*` perm.)
+
+**Listing:** searchable `name, driver_name`. No filterable fields. Default sort: `name desc` (override with `?sort=...&order=asc`).
+
+**Body schema (create):**
+
+```json
+{
+  "name": "Downtown Seattle",
+  "description": "Pike/Cap Hill loop",
+  "day_of_week": "Mon, Wed, Fri",
+  "driver_name": "Carlos V.",
+  "is_active": true
+}
+```
+
+Only `name` is required.
+
+#### Stops sub-resource
+
+Routes have an ordered list of stops (a stop = a customer + a position in the route).
+
+##### GET /api/delivery-routes/[id]/stops
+
+Permission: `customers.view`. Returns stops for the given route, sorted by `stop_order asc`, with the customer joined in.
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "route_id": "uuid",
+      "org_id": "uuid",
+      "customer_id": "uuid",
+      "stop_order": 1,
+      "notes": "Side entrance — ring bell",
+      "created_at": "2026-05-06T22:59:00Z",
+      "customers": {
+        "id": "uuid",
+        "name": "Pike Place Cafe",
+        "address": "1912 Pike Pl",
+        "city": "Seattle",
+        "state": "WA"
+      }
+    }
+  ]
+}
+```
+
+##### POST /api/delivery-routes/[id]/stops
+
+Permission: `customers.edit`. Append a stop to a route (or insert at a specific position).
+
+```json
+{
+  "customer_id": "uuid",
+  "stop_order": 3,
+  "notes": "Use loading dock"
+}
+```
+
+`stop_order` is optional and defaults to `count + 1` (end of list). Response: `201 { "data": { ...stop, customers: {...} } }`. `404` if the route isn't in your org.
+
+##### PATCH /api/delivery-routes/[id]/stops/[stopId]
+
+Permission: `customers.edit`. Update a stop's order or notes.
+
+```json
+{
+  "stop_order": 2,
+  "notes": "Updated note"
+}
+```
+
+Both fields optional. `notes` may be `null`.
+
+##### DELETE /api/delivery-routes/[id]/stops/[stopId]
+
+Permission: `customers.edit`. Removes the stop. Response: `{"success":true}` or `404`.
+
+```bash
+# Add a stop
+curl -X POST -H "X-API-Key: pk_..." -H "Content-Type: application/json" \
+  -d '{"customer_id":"<uuid>","notes":"Use side door"}' \
+  https://proviant-eight.vercel.app/api/delivery-routes/<route-id>/stops
+
+# Reorder a stop
+curl -X PATCH -H "X-API-Key: pk_..." -H "Content-Type: application/json" \
+  -d '{"stop_order":1}' \
+  https://proviant-eight.vercel.app/api/delivery-routes/<route-id>/stops/<stop-id>
+```
+
+### Plans
+
+#### GET /api/plans
+
+Public — no auth required. Returns active billing plans for use on the signup page.
+
+```json
+{
+  "plans": [
+    {
+      "id": "uuid",
+      "name": "Pro",
+      "description": "...",
+      "price_monthly": 49,
+      "price_yearly": 490,
+      "max_users": 10,
+      "max_batches_per_month": 1000,
+      "included_modules": ["batches","compliance"],
+      "is_featured": true,
+      "badge": "Most Popular",
+      "sort_order": 2
+    }
+  ]
+}
+```
+
+---
 
 ## Customer billing
 
-### `POST /api/customer-billing/invoices`
+Most endpoints in this section use `requirePermissionApi(...)` instead of `requireApiAuth(...)` — this means **only cookie session and Bearer JWT auth are accepted**. `X-API-Key` will return 401 on these. The exceptions (which DO accept `X-API-Key`) are noted inline.
 
-Create a manual invoice (for things outside the order workflow). Requires `customer_billing.manage`.
+All money flows through atomic SQL functions so payment/invoice ledger state stays consistent.
+
+### Invoices
+
+#### POST /api/customer-billing/invoices
+
+Permission: `customer_billing.manage`. Auth: cookie or Bearer.
+
+Create a manual invoice with line items. (Auto-invoices from confirmed orders are created by a DB trigger and don't go through this route.)
 
 ```json
 {
   "customer_id": "uuid",
-  "issued_at": "2026-04-29T00:00:00Z (optional)",
-  "due_at": "2026-05-29T00:00:00Z (optional)",
-  "notes": "Late delivery surcharge",
-  "order_id": null,
+  "issued_at": "2026-05-07T00:00:00Z",
+  "due_at": "2026-06-06T00:00:00Z",
+  "notes": "Custom platter for event",
+  "order_id": "uuid-or-null",
   "line_items": [
-    { "description": "Late fee", "quantity": 1, "unit_price": 25.00 }
+    {
+      "description": "Sourdough x 12",
+      "quantity": 12,
+      "unit_price": 4.50,
+      "product_id": "uuid",
+      "order_item_id": "uuid"
+    }
   ]
 }
 ```
 
-### `POST /api/customer-billing/invoices/[id]/void`
+Required: `customer_id` and at least one line item (each needing `description`, `quantity > 0`, `unit_price ≥ 0`). `issued_at` defaults to now if omitted.
 
-Void an invoice. Returns 400 if any payments are applied — reverse the payments first.
+Response: `200 { "success": true, ...result }` (the SQL function returns identifiers in `result`).
 
-### `POST /api/customer-billing/credit-notes`
+#### POST /api/customer-billing/invoices/[id]/void
 
-Issue a credit note (negative invoice). Same shape as invoices, stored with `kind='credit_note'` and a negative total.
+Permission: `customer_billing.manage`. Auth: cookie or Bearer.
 
-### `POST /api/customer-billing/payments`
+Voids an invoice. The DB function rejects voids if any payment has been applied — reverse payments first.
 
-Record a payment manually (for cash/check/etc.). `Idempotency-Key` header is honored.
+Response: `{"success": true}` or `{"success": true, "alreadyVoided": true}`. `404` if the invoice isn't in your org.
+
+> Note: there's no `GET /api/customer-billing/invoices` list endpoint in the API. Read invoices via the Supabase REST API or the web UI.
+
+### Payments
+
+#### POST /api/customer-billing/payments
+
+Permission: `customer_billing.manage`. Auth: cookie or Bearer. Idempotent (`Idempotency-Key`).
+
+Record a non-card payment (cash, check, ACH from manual entry, etc.). For card-on-file or new-card charges, use the [charge endpoints](#charges) below.
 
 ```json
 {
   "customer_id": "uuid",
-  "amount": 100.00,
+  "amount": 54.00,
   "method": "check",
-  "reference_number": "Check #1234",
-  "notes": "...",
-  "received_at": "2026-04-29T14:00:00Z (optional)",
+  "reference_number": "Ck-1024",
+  "notes": "Mailed payment",
+  "received_at": "2026-05-07T00:00:00Z",
   "applications": [
-    { "invoice_id": "uuid", "amount": 80.00 }
+    { "invoice_id": "uuid", "amount": 54.00 }
   ]
 }
 ```
 
-Any unallocated portion sits as credit on the customer's account.
+`method` is one of `cash | check | card | ach | other`, defaults to `other`. `applications` is optional (omit or empty `[]` to leave the payment unapplied — it'll show as customer credit). Each application's `amount` must be `> 0`.
 
-### `POST /api/customer-billing/charge-card`
+Server validates that the customer + every applied invoice belong to your org and that no applied invoice is voided. Atomically inserts the payment, applications, and recomputes invoice statuses.
 
-Charge a customer's card via Authorize.Net. Requires `customer_billing.manage`. Tokenization is via Accept.js in the browser; this endpoint receives only the opaque token, never raw card data.
+Response:
 
 ```json
 {
-  "customer_id": "uuid",
-  "amount": 100.00,
-  "opaque_data": { "dataDescriptor": "...", "dataValue": "..." },
-  "invoice_number": "INV-2026-0001 (optional, shows in Authorize.Net dashboard)",
-  "description": "...",
-  "notes": "...",
-  "applications": [...]
+  "success": true,
+  "payment_id": "uuid",
+  "applications": [ /* applied rows */ ]
 }
 ```
 
-Returns 402 on decline with the gateway's message and no payment row.
+### Charges
 
-### `POST /api/customer-billing/initiate-ach`
+#### POST /api/customer-billing/charge-card
 
-Initiate an ACH transfer via Bill.com. The Bill.com submission itself is currently stubbed — recorded ACH payments stay in `gateway_status='pending'` until manually marked cleared.
+Permission: `customer_billing.manage`. Auth: cookie or Bearer. Idempotent.
+
+Charge a card via Authorize.Net using an Accept.js opaque token (the card never touches our servers). Records the resulting payment and applies to invoices, all in one operation.
 
 ```json
 {
   "customer_id": "uuid",
-  "amount": 500.00,
+  "amount": 54.00,
+  "opaque_data": {
+    "dataDescriptor": "COMMON.ACCEPT.INAPP.PAYMENT",
+    "dataValue": "eyJjb2RlIjoi..."
+  },
+  "invoice_number": "INV-2026-0042",
+  "description": "Order PO-2026-0001",
+  "notes": "Charged at delivery",
+  "applications": [
+    { "invoice_id": "uuid", "amount": 54.00 }
+  ]
+}
+```
+
+`opaque_data` comes from the Accept.js client-side tokenization (use [`GET /api/customer-billing/auth-net-config`](#get-apicustomer-billingauth-net-config) to get the public client key the browser needs). Requires Authorize.Net to be configured for your org (see [`gateway-settings`](#gateway-settings)). Returns `400` if not.
+
+Success response:
+
+```json
+{
+  "success": true,
+  "payment_id": "uuid",
+  "gateway": "authorize_net",
+  "gateway_transaction_id": "60012345678",
+  "auth_code": "GH7K2L",
+  "message": "This transaction has been approved."
+}
+```
+
+Card decline returns `402`:
+
+```json
+{
+  "error": "This transaction has been declined.",
+  "gateway": "authorize_net",
+  "response_code": "2"
+}
+```
+
+If the card is charged but local recording fails: `500` with `gateway_transaction_id` so you can reconcile manually.
+
+#### POST /api/customer-billing/charge-saved
+
+Permission: `customer_billing.manage`. Auth: cookie, Bearer, **or** X-API-Key (uses `requireApiAuth`). Idempotent.
+
+Charge a card already on file via its saved payment-profile id. The browser only ever sends the local `payment_profile_id` — never card data.
+
+```json
+{
+  "payment_profile_id": "uuid",
+  "amount": 54.00,
+  "description": "Charge to VISA •••• 4242",
+  "notes": "Auto-billed weekly delivery",
+  "applications": [
+    { "invoice_id": "uuid", "amount": 54.00 }
+  ]
+}
+```
+
+`description` defaults to `Charge to <card_type> •••• <last4>` if omitted. `payment_profile_id` references a row from [`/payment-profiles`](#saved-payment-profiles) — the gateway must be `authorize_net` (others rejected with 400).
+
+Success:
+
+```json
+{
+  "success": true,
+  "payment_id": "uuid",
+  "gateway": "authorize_net",
+  "gateway_transaction_id": "60012345679",
+  "auth_code": "GH7K2L",
+  "message": "This transaction has been approved.",
+  "card": { "type": "Visa", "last4": "4242" }
+}
+```
+
+Decline returns `402` with `response_code` (same shape as charge-card).
+
+#### POST /api/customer-billing/initiate-ach
+
+Permission: `customer_billing.manage`. Auth: cookie or Bearer. Idempotent.
+
+Initiate an ACH transfer through Bill.com. Records the payment row immediately with `gateway_status='pending'`; settlement webhooks (when wired) flip it to `cleared` or `failed`.
+
+```json
+{
+  "customer_id": "uuid",
+  "amount": 200.00,
   "routing_number": "021000021",
   "account_number": "1234567890",
-  "account_holder_name": "Acme Bakery",
+  "account_holder_name": "Pike Place Cafe LLC",
   "account_type": "checking",
-  "applications": [...]
+  "description": "May invoice payment",
+  "notes": "...",
+  "applications": [
+    { "invoice_id": "uuid", "amount": 200.00 }
+  ]
 }
 ```
+
+`routing_number` must be exactly 9 digits. `account_number` must be ≥ 4 chars. `account_type` is `checking | savings`. Requires Bill.com gateway credentials.
+
+Success:
+
+```json
+{
+  "success": true,
+  "payment_id": "uuid",
+  "gateway": "bill_dot_com",
+  "gateway_transaction_id": "billcom-tx-1234",
+  "status": "pending",
+  "message": "ACH transfer submitted"
+}
+```
+
+> **v1 caveat:** the Bill.com submission is currently stubbed; the ledger row is real, but no ACH actually moves until the integration is wired.
+
+### Credit notes
+
+#### POST /api/customer-billing/credit-notes
+
+Permission: `customer_billing.manage`. Auth: cookie or Bearer.
+
+Issue a credit note against a customer (a negative invoice). Stored in `customer_invoices` with `kind='credit_note'` so the balance function nets correctly.
+
+```json
+{
+  "customer_id": "uuid",
+  "issued_at": "2026-05-07T00:00:00Z",
+  "notes": "Refund for damaged order #PO-2026-0040",
+  "line_items": [
+    { "description": "Damaged loaves credit", "quantity": 12, "unit_price": 4.50 }
+  ]
+}
+```
+
+Required: `customer_id` and at least one line item. `issued_at` and `notes` are optional.
+
+Response: `200 { "success": true, ...result }`.
+
+### Saved payment profiles
+
+#### GET /api/customer-billing/payment-profiles?customer_id=...
+
+Permission: `customer_billing.view`. Auth: cookie, Bearer, **or** X-API-Key (uses `requireApiAuth`).
+
+List masked card details for a customer.
+
+```bash
+curl -H "X-API-Key: pk_..." \
+  "https://proviant-eight.vercel.app/api/customer-billing/payment-profiles?customer_id=<uuid>"
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "customer_id": "uuid",
+      "gateway": "authorize_net",
+      "card_type": "Visa",
+      "card_last4": "4242",
+      "card_exp_month": "12",
+      "card_exp_year": "2028",
+      "cardholder_name": "Sam Roaster",
+      "is_default": true,
+      "created_at": "2026-05-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+#### POST /api/customer-billing/payment-profiles
+
+Permission: `customer_billing.manage`. Auth: cookie, Bearer, **or** X-API-Key (uses `requireApiAuth`).
+
+Save a card on file via Authorize.Net CIM. Tokenize the card client-side with Accept.js to get `opaque_data`, then POST it here.
+
+```json
+{
+  "customer_id": "uuid",
+  "opaque_data": {
+    "dataDescriptor": "COMMON.ACCEPT.INAPP.PAYMENT",
+    "dataValue": "eyJjb2RlIjoi..."
+  },
+  "card_last4": "4242",
+  "card_exp_month": "12",
+  "card_exp_year": "2028",
+  "cardholder_name": "Sam Roaster",
+  "billing_zip": "98101",
+  "is_default": false
+}
+```
+
+Required: `customer_id`, `opaque_data`, `card_last4` (4 digits, captured client-side; verified against gateway). Optional: `card_exp_month` (`MM`), `card_exp_year` (`YY` or `YYYY`), `cardholder_name`, `billing_zip` (improves AVS), `is_default` (default `false`).
+
+Server flow:
+1. Ensures the customer has an Authorize.Net customer profile (creates if missing).
+2. Adds the card as a payment profile.
+3. Re-fetches authoritative `card_type` / `card_last4` from Authorize.Net.
+4. If `is_default=true`, clears other defaults for that customer.
+5. Inserts our local row.
+
+Response: `201 { "data": { ...profile } }`. Possible errors:
+- `404 {"error":"Customer not found in your organization"}`
+- `400 {"error":"Authorize.Net is not configured..."}`
+- `502 {"error":"Failed to save card: ..."}` for gateway failures
+
+#### DELETE /api/customer-billing/payment-profiles/[id]
+
+Permission: `customer_billing.manage`. Auth: cookie, Bearer, **or** X-API-Key.
+
+Removes the card both from Authorize.Net and the local row. Response: `{"success": true}` or `404`.
 
 ### Gateway settings
 
-- `GET /api/customer-billing/gateway-settings` — fetch (secrets masked)
-- `PUT /api/customer-billing/gateway-settings` — update (omit a field to leave it unchanged)
-- `GET /api/customer-billing/auth-net-config` — public-by-design Authorize.Net fields for browser tokenization
+#### GET /api/customer-billing/gateway-settings
 
-## Subscription / platform billing (Proviant ↔ org)
+Permission: `customer_billing.manage`. Auth: cookie or Bearer.
 
-These are the SaaS subscription routes — not customer A/R.
+Returns the org's gateway configuration with secrets masked (`••••••XXXX`). Public client keys are returned unmasked because the browser needs them.
 
-- `GET  /api/plans` — public, list active plan tiers
-- `POST /api/billing/change-plan` — `{ newPlanId }` (requires `billing.manage`, supports `Idempotency-Key`)
+```json
+{
+  "settings": {
+    "auth_net_environment": "sandbox",
+    "auth_net_api_login_id": "••••••6XYZ",
+    "auth_net_transaction_key": "••••••aB2C",
+    "auth_net_public_client_key": "8k3m...full-value",
+    "auth_net_configured": true,
 
-### Platform admin only
-
-Require `is_platform_admin = true` on the user.
-
-- `POST /api/admin/plans` / `PUT /api/admin/plans` — create or update a plan tier
-- `POST /api/admin/subscription` — override an org's subscription
-- `POST /api/admin/ledger` — add a ledger entry (charge/credit/etc.)
-- `POST /api/admin/record-payment` — record a payment + auto-credit referrer
-- `POST /api/admin/referrals` — create a referral link
-
-## Direct Supabase access
-
-Anything not exposed as `/api/*` (warehouse layout, tasks, departments, recipe versions, etc.) is reachable via Supabase's REST API:
-
-```bash
-curl "<SUPABASE_URL>/rest/v1/<table>?org_id=eq.<your-org>" \
-  -H "apikey: <ANON_KEY>" \
-  -H "Authorization: Bearer <user_jwt>"
+    "bill_dot_com_environment": "sandbox",
+    "bill_dot_com_username": "ops@acme.com",
+    "bill_dot_com_password": "••••••",
+    "bill_dot_com_dev_key": "••••••XYZ1",
+    "bill_dot_com_org_id": "billcom-org-id-or-blank",
+    "bill_dot_com_configured": false
+  }
+}
 ```
 
-RLS handles tenant isolation. Permissions on individual columns/operations follow the policies on each table. Anything that has business rules beyond plain CRUD should grow a `/api/*` route eventually.
+#### PUT /api/customer-billing/gateway-settings
+
+Permission: `customer_billing.manage`. Auth: cookie or Bearer.
+
+Update gateway credentials. Convention:
+- `undefined` (omitted): leave unchanged.
+- `""` (empty string): clear the stored value.
+- A masked placeholder (`"••••••XXXX"`): leave unchanged (so re-submitting the GET response doesn't overwrite secrets with bullets).
+- Any other string: store as new value.
+
+```json
+{
+  "auth_net_environment": "production",
+  "auth_net_api_login_id": "myAPI_login",
+  "auth_net_transaction_key": "myTxKey",
+  "auth_net_public_client_key": "8k3m...",
+
+  "bill_dot_com_environment": "sandbox",
+  "bill_dot_com_dev_key": "...",
+  "bill_dot_com_username": "ops@acme.com",
+  "bill_dot_com_password": "...",
+  "bill_dot_com_org_id": "..."
+}
+```
+
+All fields optional. `auth_net_environment` and `bill_dot_com_environment` are `sandbox | production` enums.
+
+Response: `{"success": true}`.
+
+### Authorize.Net client config
+
+#### GET /api/customer-billing/auth-net-config
+
+Permission: `customer_billing.manage`. Auth: cookie or Bearer.
+
+Returns the Accept.js fields the browser needs to tokenize a card. The transaction key is never returned here.
+
+```json
+{
+  "configured": true,
+  "environment": "sandbox",
+  "api_login_id": "myAPI_login",
+  "public_client_key": "8k3m..."
+}
+```
+
+If gateway is not configured: `{"configured": false}`.
+
+---
+
+## Permission code reference
+
+A complete list of permission codes used by this API. Grant these to roles (for users) or include in the `scopes` array (for API keys).
+
+| Module | Codes |
+| --- | --- |
+| Customers | `customers.view`, `customers.create`, `customers.edit`, `customers.delete` |
+| Products | `products.view`, `products.create`, `products.edit`, `products.delete` |
+| Materials | `materials.view`, `materials.create`, `materials.edit`, `materials.delete` |
+| Suppliers | `suppliers.view`, `suppliers.create`, `suppliers.edit` |
+| Recipes | `recipes.view`, `recipes.create`, `recipes.edit`, `recipes.delete` |
+| Batches | `batches.view`, `batches.create`, `batches.edit`, `batches.delete` |
+| Orders | `orders.view`, `orders.create`, `orders.edit`, `orders.delete` |
+| Compliance | `compliance.view`, `compliance.create`, `compliance.edit` |
+| Customer billing | `customer_billing.view`, `customer_billing.manage` |
+| Users | `users.create` |
+| API keys | `api_keys.manage` |
+
+A scope of `*` on an API key passes every permission check.
+
+---
+
+## Quick-start: end-to-end script
+
+1. **Mint an API key** (one-time, via web UI or cookie session):
+   ```bash
+   # From a browser session — visit Settings → API Keys → New Key
+   # Save the plaintext output once shown.
+   export API_KEY="pk_aBcD..."
+   export BASE="https://proviant-eight.vercel.app"
+   ```
+2. **Create a customer**:
+   ```bash
+   CUSTOMER=$(curl -s -X POST "$BASE/api/customers" \
+     -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+     -d '{"name":"New Cafe","email":"hi@newcafe.com"}' | jq -r .data.id)
+   ```
+3. **Create a product**:
+   ```bash
+   PRODUCT=$(curl -s -X POST "$BASE/api/products" \
+     -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+     -d '{"name":"Sourdough","sku":"SD-1","unit":"loaf"}' | jq -r .data.id)
+   ```
+4. **Create an order with line items** (uses idempotency):
+   ```bash
+   ORDER=$(curl -s -X POST "$BASE/api/orders" \
+     -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+     -H "Idempotency-Key: $(uuidgen)" \
+     -d "{
+       \"order_number\":\"PO-001\",
+       \"customer_id\":\"$CUSTOMER\",
+       \"customer_name\":\"New Cafe\",
+       \"items\":[{\"product_id\":\"$PRODUCT\",\"quantity\":12,\"unit_price\":5}]
+     }" | jq -r .data.id)
+   ```
+5. **Confirm the order** (auto-creates an invoice via DB trigger):
+   ```bash
+   curl -X POST "$BASE/api/orders/$ORDER/transition-status" \
+     -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+     -d '{"status":"confirmed"}'
+   ```
+6. **Record a payment** (cookie/Bearer auth required — most billing endpoints reject `X-API-Key`):
+   ```bash
+   curl -X POST "$BASE/api/customer-billing/payments" \
+     -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
+     -H "Idempotency-Key: $(uuidgen)" \
+     -d "{
+       \"customer_id\":\"$CUSTOMER\",
+       \"amount\":60,
+       \"method\":\"check\"
+     }"
+   ```

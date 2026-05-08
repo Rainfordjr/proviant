@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Building2, Users, CreditCard, ArrowLeft,
-  Package, Settings, Gift,
+  Package, Settings, Gift, BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { title: "Users", href: "/admin/users", icon: Users },
   { title: "Plans", href: "/admin/plans", icon: CreditCard },
   { title: "Referrals", href: "/admin/referrals", icon: Gift },
+  { title: "API Reference", href: "/admin/api-docs", icon: BookOpen },
 ];
 
 export function AdminSidebar() {
