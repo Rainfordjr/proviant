@@ -1,29 +1,26 @@
 import { z } from "zod";
 import { makeCrudRoutes } from "@/lib/api-crud";
-import { uuid } from "@/lib/validation";
 
 const Create = z.object({
   name: z.string().min(1),
-  ingredient_id: uuid(),
-  supplier_id: uuid().nullable().optional(),
   unit: z.string().optional(),
-  reorder_point: z.number().nonnegative().optional(),
-  current_stock: z.number().nonnegative().optional(),
   description: z.string().nullable().optional(),
+  allergens: z.array(z.string()).optional(),
   is_active: z.boolean().optional(),
 });
 
 const handlers = makeCrudRoutes({
-  table: "raw_materials",
+  table: "ingredients",
   permissions: {
-    view: "materials.view",
-    create: "materials.create",
-    edit: "materials.edit",
-    delete: "materials.delete",
+    view: "ingredients.view",
+    create: "ingredients.create",
+    edit: "ingredients.edit",
+    delete: "ingredients.delete",
   },
   schemas: { create: Create, update: Create.partial() },
   searchableFields: ["name", "description"],
-  filterableFields: ["is_active", "supplier_id", "ingredient_id"],
+  filterableFields: ["is_active"],
+  defaultSort: "name",
 });
 
 export const GET = handlers.list;

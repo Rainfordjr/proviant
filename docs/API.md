@@ -425,7 +425,36 @@ curl -X POST -H "X-API-Key: pk_..." -H "Content-Type: application/json" \
   https://proviant-eight.vercel.app/api/products
 ```
 
+### Ingredients
+
+Abstract specification of "what a recipe calls for" (e.g. *Butter (unsalted)*). One ingredient can be satisfied by many raw materials (vendor SKUs) — that's how substitution works. Allergens live here exclusively; raw materials inherit them.
+
+| Op | Permission | Method | Path |
+| --- | --- | --- | --- |
+| View | `ingredients.view` | GET | `/api/ingredients`, `/api/ingredients/[id]` |
+| Create | `ingredients.create` | POST | `/api/ingredients` |
+| Edit | `ingredients.edit` | PATCH | `/api/ingredients/[id]` |
+| Delete | `ingredients.delete` | DELETE | `/api/ingredients/[id]` |
+
+**Listing:** searchable `name, description`. Filterable: `is_active`. Default sort: `name asc`.
+
+**Body schema (create):**
+
+```json
+{
+  "name": "Butter (unsalted)",
+  "unit": "lbs",
+  "description": "European-style preferred",
+  "allergens": ["milk"],
+  "is_active": true
+}
+```
+
+`name` is required. `unit` defaults to `lbs`. `allergens` is a string array (matches food-safety convention — e.g. `["milk", "soy"]`). The combination `(org_id, lower(name))` is unique per org.
+
 ### Raw materials
+
+A specific vendor SKU that fulfills an ingredient. Multiple materials per ingredient are encouraged — that's substitution.
 
 | Op | Permission | Method | Path |
 | --- | --- | --- | --- |
@@ -434,23 +463,24 @@ curl -X POST -H "X-API-Key: pk_..." -H "Content-Type: application/json" \
 | Edit | `materials.edit` | PATCH | `/api/raw-materials/[id]` |
 | Delete | `materials.delete` | DELETE | `/api/raw-materials/[id]` |
 
-**Listing:** searchable `name, description`. Filterable: `is_active, supplier_id`. Default sort: `created_at desc`.
+**Listing:** searchable `name, description`. Filterable: `is_active, supplier_id, ingredient_id`. Default sort: `created_at desc`.
 
 **Body schema (create):**
 
 ```json
 {
-  "name": "Bread Flour",
-  "supplier_id": "uuid-or-null",
-  "unit": "kg",
-  "reorder_point": 50,
-  "current_stock": 200,
-  "description": "Pacific NW Flour Co. AP",
+  "name": "PNW European-Style Unsalted Butter",
+  "ingredient_id": "f0000000-0000-0000-0000-000000000005",
+  "supplier_id": "b0000000-0000-0000-0000-000000000001",
+  "unit": "lbs",
+  "reorder_point": 30,
+  "current_stock": 12,
+  "description": "1 lb block, refrigerated",
   "is_active": true
 }
 ```
 
-`name` is required. Numeric fields must be `≥ 0`. `supplier_id` may be `null`.
+`name` and `ingredient_id` are required. Numeric fields must be `≥ 0`. `supplier_id` may be `null`. **Allergens are not on raw materials** — they're inherited from the ingredient. Note `unit` here is the *vendor packaging* unit; recipe-time conversion uses the parent ingredient's unit.
 
 ### Suppliers
 
@@ -506,6 +536,8 @@ Only `name` is required.
 ```
 
 Only `name` is required. Recipe ingredients/sections are managed in the database — there's no public endpoint for them in this API; manage them via the web UI or direct DB.
+
+Recipe ingredient lines reference `ingredient_id` (the abstract ingredient), **not** `raw_material_id`. Optional per-recipe substitution rules live in `recipe_ingredient_substitutions` (`recipe_id, ingredient_id, raw_material_id`): empty = any active material under the ingredient is fine; non-empty = restricted to the listed materials only. A DB trigger guarantees a chosen material's `ingredient_id` matches the row's ingredient.
 
 ### Batches
 
@@ -1177,6 +1209,7 @@ A complete list of permission codes used by this API. Grant these to roles (for 
 | --- | --- |
 | Customers | `customers.view`, `customers.create`, `customers.edit`, `customers.delete` |
 | Products | `products.view`, `products.create`, `products.edit`, `products.delete` |
+| Ingredients | `ingredients.view`, `ingredients.create`, `ingredients.edit`, `ingredients.delete` |
 | Materials | `materials.view`, `materials.create`, `materials.edit`, `materials.delete` |
 | Suppliers | `suppliers.view`, `suppliers.create`, `suppliers.edit` |
 | Recipes | `recipes.view`, `recipes.create`, `recipes.edit`, `recipes.delete` |

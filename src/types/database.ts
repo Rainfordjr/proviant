@@ -32,9 +32,24 @@ export interface Product {
   updated_at: string;
 }
 
+export interface Ingredient {
+  id: string;
+  org_id: string;
+  name: string;
+  unit: string;
+  description: string | null;
+  allergens: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  raw_materials?: RawMaterial[];
+}
+
 export interface RawMaterial {
   id: string;
   org_id: string;
+  ingredient_id: string;
   name: string;
   supplier_id: string | null;
   unit: string;
@@ -44,6 +59,9 @@ export interface RawMaterial {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Joined fields
+  ingredient?: Ingredient;
+  ingredients?: Ingredient;
 }
 
 export interface MaterialLot {
@@ -193,28 +211,38 @@ export interface RecipeVersion {
 export interface RecipeVersionIngredient {
   id: string;
   recipe_version_id: string;
-  raw_material_id: string;
+  ingredient_id: string;
   quantity: number;
   unit: string;
   notes: string | null;
   sort_order: number;
   created_at: string;
   // Joined fields
-  raw_materials?: RawMaterial;
+  ingredients?: Ingredient;
 }
 
-// Keep old interface for backward compat with recipe_ingredients table
 export interface RecipeIngredient {
   id: string;
   recipe_id: string;
-  raw_material_id: string;
+  ingredient_id: string;
   quantity: number;
   unit: string;
   notes: string | null;
   sort_order: number;
   created_at: string;
   // Joined fields
-  raw_materials?: RawMaterial;
+  ingredients?: Ingredient;
+}
+
+export interface RecipeIngredientSubstitution {
+  id: string;
+  recipe_id: string;
+  ingredient_id: string;
+  raw_material_id: string;
+  created_at: string;
+  // Joined fields
+  raw_material?: RawMaterial;
+  ingredient?: Ingredient;
 }
 
 export interface ProductComponent {
