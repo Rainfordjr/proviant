@@ -41,7 +41,7 @@ export default async function RecipeVersionDetailPage({
   const [{ data: ingredients }, { data: versionSections }] = await Promise.all([
     supabase
       .from("recipe_version_ingredients")
-      .select("*, raw_materials(name, unit, current_stock)")
+      .select("*, ingredients(id, name, unit)")
       .eq("recipe_version_id", versionId)
       .order("sort_order", { ascending: true }),
     supabase
@@ -56,6 +56,23 @@ export default async function RecipeVersionDetailPage({
     ...sec,
     ingredients: (ingredients || []).filter((i: any) => i.section_id === sec.id),
   }));
+
+  // Aggregate stock per ingredient (sum across all raw_materials with that ingredient_id)
+  const ingredientIds = Array.from(new Set(
+    (ingredients || []).map((i: any) => i.ingredient_id).filter(Boolean)
+  ));
+  const stockByIngredient = new Map<string, number>();
+  if (ingredientIds.length > 0) {
+    const { data: rmStock } = await supabase
+      .from("raw_materials")
+      .select("ingredient_id, current_stock")
+      .in("ingredient_id", ingredientIds as string[]);
+    for (const r of rmStock || []) {
+      const cur = stockByIngredient.get((r as any).ingredient_id) || 0;
+      stockByIngredient.set((r as any).ingredient_id, cur + Number((r as any).current_stock || 0));
+    }
+  }
+  const ingStock = (ing: any) => stockByIngredient.get(ing.ingredient_id) ?? 0;
 
   // Fetch batches using this version
   const { data: batches } = await supabase
@@ -193,7 +210,7 @@ export default async function RecipeVersionDetailPage({
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">#</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Material</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Ingredient</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Quantity</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Unit</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">In Stock</th>
@@ -201,23 +218,23 @@ export default async function RecipeVersionDetailPage({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {unsectionedIngredients.map((ing: any, idx: number) => (
-                      <tr key={ing.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{ing.raw_materials?.name || "Unknown"}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{ing.quantity}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{ing.unit}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={
-                            (ing.raw_materials?.current_stock || 0) < ing.quantity
-                              ? "text-red-600 font-medium" : "text-gray-700"
-                          }>
-                            {ing.raw_materials?.current_stock ?? "—"} {ing.raw_materials?.unit || ""}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{ing.notes || "—"}</td>
-                      </tr>
-                    ))}
+                    {unsectionedIngredients.map((ing: any, idx: number) => {
+                      const stock = ingStock(ing);
+                      return (
+                        <tr key={ing.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{ing.ingredients?.name || "Unknown"}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{ing.quantity}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{ing.unit}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={stock < ing.quantity ? "text-red-600 font-medium" : "text-gray-700"}>
+                              {stock} {ing.ingredients?.unit || ""}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{ing.notes || "—"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -237,7 +254,7 @@ export default async function RecipeVersionDetailPage({
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-50">
                         <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">#</th>
-                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Material</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Ingredient</th>
                         <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Quantity</th>
                         <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Unit</th>
                         <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">In Stock</th>
@@ -245,23 +262,23 @@ export default async function RecipeVersionDetailPage({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {group.ingredients.map((ing: any, idx: number) => (
-                        <tr key={ing.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{ing.raw_materials?.name || "Unknown"}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{ing.quantity}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{ing.unit}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={
-                              (ing.raw_materials?.current_stock || 0) < ing.quantity
-                                ? "text-red-600 font-medium" : "text-gray-700"
-                            }>
-                              {ing.raw_materials?.current_stock ?? "—"} {ing.raw_materials?.unit || ""}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{ing.notes || "—"}</td>
-                        </tr>
-                      ))}
+                      {group.ingredients.map((ing: any, idx: number) => {
+                        const stock = ingStock(ing);
+                        return (
+                          <tr key={ing.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{ing.ingredients?.name || "Unknown"}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{ing.quantity}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{ing.unit}</td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className={stock < ing.quantity ? "text-red-600 font-medium" : "text-gray-700"}>
+                                {stock} {ing.ingredients?.unit || ""}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{ing.notes || "—"}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}

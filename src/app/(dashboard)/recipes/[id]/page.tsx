@@ -3,6 +3,7 @@ import { requirePermission, checkPermission } from "@/lib/permissions";
 import Link from "next/link";
 import { ArrowLeft, ChefHat, Wheat, Package, Layers, CheckCircle, XCircle, Plus, Clock, FileText, Pencil, Play, ShoppingBag } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { RecipeSubstitutionsEditor } from "@/components/recipes/recipe-substitutions-editor";
 import { VERSION_STATUSES } from "@/lib/constants";
 import { notFound } from "next/navigation";
 
@@ -49,7 +50,7 @@ export default async function RecipeDetailPage({
     const [{ data: ings }, { data: secs }] = await Promise.all([
       supabase
         .from("recipe_version_ingredients")
-        .select("*, raw_materials(name, unit, current_stock)")
+        .select("*, ingredients(id, name, unit)")
         .eq("recipe_version_id", currentVersion.id)
         .order("sort_order", { ascending: true }),
       supabase
@@ -66,7 +67,7 @@ export default async function RecipeDetailPage({
   if (currentIngredients.length === 0) {
     const { data } = await supabase
       .from("recipe_ingredients")
-      .select("*, raw_materials(name, unit, current_stock)")
+      .select("*, ingredients(id, name, unit)")
       .eq("recipe_id", id)
       .order("sort_order", { ascending: true });
     currentIngredients = data || [];
@@ -78,6 +79,62 @@ export default async function RecipeDetailPage({
     ...sec,
     ingredients: currentIngredients.filter((i: any) => i.section_id === sec.id),
   }));
+
+  // Aggregate stock per ingredient_id (sum across raw_materials)
+  const ingredientIds = Array.from(new Set(
+    currentIngredients.map((i: any) => i.ingredient_id || i.ingredients?.id).filter(Boolean)
+  ));
+  const stockByIngredient = new Map<string, number>();
+  if (ingredientIds.length > 0) {
+    const { data: rmStock } = await supabase
+      .from("raw_materials")
+      .select("ingredient_id, current_stock")
+      .in("ingredient_id", ingredientIds as string[]);
+    for (const r of rmStock || []) {
+      const cur = stockByIngredient.get((r as any).ingredient_id) || 0;
+      stockByIngredient.set((r as any).ingredient_id, cur + Number((r as any).current_stock || 0));
+    }
+  }
+  const ingStock = (ing: any) => stockByIngredient.get(ing.ingredient_id || ing.ingredients?.id) ?? 0;
+
+  // Substitutions: load existing rules for this recipe + all materials per ingredient (for the picker)
+  const { data: subRows } = await supabase
+    .from("recipe_ingredient_substitutions")
+    .select("id, ingredient_id, raw_material_id, raw_materials(name, suppliers(name))")
+    .eq("recipe_id", id);
+  const subsByIngredient = new Map<string, any[]>();
+  for (const r of subRows || []) {
+    const arr = subsByIngredient.get((r as any).ingredient_id) || [];
+    arr.push(r);
+    subsByIngredient.set((r as any).ingredient_id, arr);
+  }
+  const { data: allMaterialsForSubs } = ingredientIds.length > 0
+    ? await supabase
+        .from("raw_materials")
+        .select("id, name, ingredient_id, suppliers(name)")
+        .in("ingredient_id", ingredientIds as string[])
+        .eq("is_active", true)
+        .order("name")
+    : { data: [] };
+  const matsByIngredient = new Map<string, any[]>();
+  for (const m of allMaterialsForSubs || []) {
+    const arr = matsByIngredient.get((m as any).ingredient_id) || [];
+    arr.push(m);
+    matsByIngredient.set((m as any).ingredient_id, arr);
+  }
+  // Distinct ingredients used by this recipe (dedupe by id, preserve first occurrence's name/unit)
+  const distinctIngredients: { id: string; name: string; unit: string }[] = [];
+  const seenIngIds = new Set<string>();
+  for (const ing of currentIngredients) {
+    const ingId = ing.ingredient_id || ing.ingredients?.id;
+    if (!ingId || seenIngIds.has(ingId)) continue;
+    seenIngIds.add(ingId);
+    distinctIngredients.push({
+      id: ingId,
+      name: ing.ingredients?.name || "Unknown",
+      unit: ing.ingredients?.unit || ing.unit || "",
+    });
+  }
 
   // Fetch the linked output product (product references recipe via products.recipe_id)
   const { data: linkedProduct } = await supabase
@@ -283,7 +340,7 @@ export default async function RecipeDetailPage({
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">#</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Material</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Ingredient</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Quantity</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Unit</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">In Stock</th>
@@ -291,23 +348,23 @@ export default async function RecipeDetailPage({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {unsectionedIngredients.map((ing: any, idx: number) => (
-                      <tr key={ing.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{ing.raw_materials?.name || "Unknown"}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{ing.quantity}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{ing.unit}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className={
-                            (ing.raw_materials?.current_stock || 0) < ing.quantity
-                              ? "text-red-600 font-medium" : "text-gray-700"
-                          }>
-                            {ing.raw_materials?.current_stock ?? "—"} {ing.raw_materials?.unit || ""}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{ing.notes || "—"}</td>
-                      </tr>
-                    ))}
+                    {unsectionedIngredients.map((ing: any, idx: number) => {
+                      const stock = ingStock(ing);
+                      return (
+                        <tr key={ing.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{ing.ingredients?.name || "Unknown"}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{ing.quantity}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{ing.unit}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={stock < ing.quantity ? "text-red-600 font-medium" : "text-gray-700"}>
+                              {stock} {ing.ingredients?.unit || ""}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{ing.notes || "—"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -327,7 +384,7 @@ export default async function RecipeDetailPage({
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-50">
                         <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">#</th>
-                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Material</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Ingredient</th>
                         <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Quantity</th>
                         <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">Unit</th>
                         <th className="px-4 py-2 text-left text-xs font-semibold uppercase text-gray-500">In Stock</th>
@@ -335,23 +392,23 @@ export default async function RecipeDetailPage({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {group.ingredients.map((ing: any, idx: number) => (
-                        <tr key={ing.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{ing.raw_materials?.name || "Unknown"}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{ing.quantity}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{ing.unit}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={
-                              (ing.raw_materials?.current_stock || 0) < ing.quantity
-                                ? "text-red-600 font-medium" : "text-gray-700"
-                            }>
-                              {ing.raw_materials?.current_stock ?? "—"} {ing.raw_materials?.unit || ""}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{ing.notes || "—"}</td>
-                        </tr>
-                      ))}
+                      {group.ingredients.map((ing: any, idx: number) => {
+                        const stock = ingStock(ing);
+                        return (
+                          <tr key={ing.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{ing.ingredients?.name || "Unknown"}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{ing.quantity}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{ing.unit}</td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className={stock < ing.quantity ? "text-red-600 font-medium" : "text-gray-700"}>
+                                {stock} {ing.ingredients?.unit || ""}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{ing.notes || "—"}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
@@ -370,6 +427,24 @@ export default async function RecipeDetailPage({
           </div>
         </div>
       )}
+
+      {/* Substitution rules (per-recipe allow-list of acceptable vendor SKUs per ingredient) */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Substitution Rules</h2>
+          <p className="text-sm text-gray-500">
+            Restrict which vendor SKUs are allowed for each ingredient in this recipe.
+            Empty list = any active material under that ingredient is fine. These rules don&apos;t bump the version.
+          </p>
+        </div>
+        <RecipeSubstitutionsEditor
+          recipeId={id}
+          ingredients={distinctIngredients}
+          initialSubsByIngredient={Object.fromEntries(subsByIngredient.entries())}
+          materialsByIngredient={Object.fromEntries(matsByIngredient.entries())}
+          canEdit={canEdit}
+        />
+      </div>
 
       {/* Version History */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">

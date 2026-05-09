@@ -12,7 +12,7 @@ export default async function MaterialsPage() {
 
   const { data: materials } = await supabase
     .from("raw_materials")
-    .select("*, suppliers(name)")
+    .select("*, suppliers(name), ingredients(id, name, allergens)")
     .order("name", { ascending: true });
 
   return (
@@ -36,6 +36,7 @@ export default async function MaterialsPage() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Material</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Ingredient</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Vendor</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Category</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Storage</th>
@@ -48,7 +49,7 @@ export default async function MaterialsPage() {
             <tbody className="divide-y divide-gray-100">
               {(materials || []).map((mat: any) => {
                 const isLow = mat.current_stock <= mat.reorder_point;
-                const allergenLabels = (mat.allergens || []).map((key: string) => {
+                const allergenLabels = (mat.ingredients?.allergens || []).map((key: string) => {
                   const found = ALLERGENS.find((a) => a.value === key);
                   return found ? found.label : key;
                 });
@@ -62,6 +63,13 @@ export default async function MaterialsPage() {
                       {mat.item_code && (
                         <span className="ml-2 text-xs text-gray-400">{mat.item_code}</span>
                       )}
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-700">
+                      {mat.ingredients ? (
+                        <Link href={`/ingredients/${mat.ingredients.id}`} className="text-blue-600 hover:text-blue-800">
+                          {mat.ingredients.name}
+                        </Link>
+                      ) : "—"}
                     </td>
                     <td className="px-4 py-4 text-sm text-gray-700">
                       {mat.suppliers?.name ? (
@@ -109,7 +117,7 @@ export default async function MaterialsPage() {
               })}
               {(materials || []).length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={9} className="px-6 py-8 text-center text-sm text-gray-500">
                     No materials yet. Add your first material to get started.
                   </td>
                 </tr>

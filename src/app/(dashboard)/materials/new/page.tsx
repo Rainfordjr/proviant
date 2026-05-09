@@ -1,25 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRequirePermission } from "@/lib/usePermission";
 import { UnitSelect } from "@/components/ui/unit-select";
 import {
-  ALLERGENS,
   MATERIAL_CATEGORIES,
   STORAGE_REQUIREMENTS,
   SHELF_LIFE_UNITS,
 } from "@/lib/constants";
 
-export default function NewMaterialPage() {
+function NewMaterialForm() {
   const { loading: permLoading } = useRequirePermission("materials.create");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const presetIngredientId = searchParams.get("ingredient_id") || "";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [ingredients, setIngredients] = useState<any[]>([]);
+  const [ingredientId, setIngredientId] = useState<string>(presetIngredientId);
 
   // ── Form state ──────────────────────────────────────────────
   // Identification
@@ -53,10 +56,8 @@ export default function NewMaterialPage() {
   const [openedShelfLifeQty, setOpenedShelfLifeQty] = useState("");
   const [openedShelfLifeUnit, setOpenedShelfLifeUnit] = useState("");
 
-  // Storage & allergens
+  // Storage
   const [storageRequirements, setStorageRequirements] = useState("");
-  const [allergens, setAllergens] = useState<string[]>([]);
-  const [allergenNotes, setAllergenNotes] = useState("");
 
   // Packaging
   const [packagingSize, setPackagingSize] = useState("");
@@ -71,19 +72,25 @@ export default function NewMaterialPage() {
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
-    const fetchSuppliers = async () => {
+    const fetchOptions = async () => {
       const supabase = createClient();
-      const { data } = await supabase.from("suppliers").select("id, name").eq("is_active", true).order("name");
-      setSuppliers(data || []);
+      const [{ data: sup }, { data: ing }] = await Promise.all([
+        supabase.from("suppliers").select("id, name").eq("is_active", true).order("name"),
+        supabase.from("ingredients").select("id, name, unit").eq("is_active", true).order("name"),
+      ]);
+      setSuppliers(sup || []);
+      setIngredients(ing || []);
     };
-    fetchSuppliers();
+    fetchOptions();
   }, []);
 
-  const toggleAllergen = (value: string) => {
-    setAllergens((prev) =>
-      prev.includes(value) ? prev.filter((a) => a !== value) : [...prev, value]
-    );
-  };
+  // When the user picks an ingredient, default the material's unit
+  // to the ingredient's unit (they can still override for vendor packaging).
+  useEffect(() => {
+    if (!ingredientId) return;
+    const ing = ingredients.find((i) => i.id === ingredientId);
+    if (ing?.unit) setUnit(ing.unit);
+  }, [ingredientId, ingredients]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,8 +104,11 @@ export default function NewMaterialPage() {
     const { data: profile } = await supabase.from("users").select("org_id").eq("id", user.id).single();
     if (!profile) { setError("Could not find your organization."); setLoading(false); return; }
 
+    if (!ingredientId) { setError("Please select an ingredient."); setLoading(false); return; }
+
     const { error: insertError } = await supabase.from("raw_materials").insert({
       org_id: profile.org_id,
+      ingredient_id: ingredientId,
       name,
       vendor_name: vendorName || null,
       item_code: itemCode || null,
@@ -121,8 +131,6 @@ export default function NewMaterialPage() {
       opened_shelf_life_qty: openedShelfLifeQty ? parseInt(openedShelfLifeQty) : null,
       opened_shelf_life_unit: openedShelfLifeUnit || null,
       storage_requirements: storageRequirements || null,
-      allergens: allergens.length > 0 ? allergens : [],
-      allergen_notes: allergenNotes || null,
       packaging_size: packagingSize || null,
       inner_pack_size: innerPackSize || null,
       inner_pack_type: innerPackType || null,
@@ -162,6 +170,19 @@ export default function NewMaterialPage() {
         {/* ── Identification ─────────────────────────── */}
         <div className={sectionClass}>
           <h2 className="text-lg font-semibold text-gray-900">Identification</h2>
+
+          <div>
+            <label htmlFor="ingredient" className={labelClass}>Ingredient *</label>
+            <select id="ingredient" required value={ingredientId} onChange={(e) => setIngredientId(e.target.value)}
+              className={inputClass}>
+              <option value="">Select ingredient...</option>
+              {ingredients.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              Allergens are inherited from the ingredient.{" "}
+              <Link href="/ingredients/new" className="text-blue-600 hover:underline">Create a new ingredient</Link> if none fits.
+            </p>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -324,9 +345,9 @@ export default function NewMaterialPage() {
           </div>
         </div>
 
-        {/* ── Storage & Allergens ─────────────────────── */}
+        {/* ── Storage ─────────────────────── */}
         <div className={sectionClass}>
-          <h2 className="text-lg font-semibold text-gray-900">Storage &amp; Allergens</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Storage</h2>
 
           <div>
             <label htmlFor="storageRequirements" className={labelClass}>Storage Requirements</label>
@@ -335,27 +356,7 @@ export default function NewMaterialPage() {
               <option value="">Select...</option>
               {STORAGE_REQUIREMENTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
-          </div>
-
-          <div>
-            <label className={labelClass}>Allergens (FDA Big 9)</label>
-            <div className="mt-2 flex flex-wrap gap-3">
-              {ALLERGENS.map((a) => (
-                <label key={a.value} className="inline-flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={allergens.includes(a.value)}
-                    onChange={() => toggleAllergen(a.value)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                  {a.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="allergenNotes" className={labelClass}>Additional Allergen Notes</label>
-            <input id="allergenNotes" type="text" value={allergenNotes}
-              onChange={(e) => setAllergenNotes(e.target.value)}
-              placeholder="Other allergens or cross-contamination notes" className={inputClass} />
+            <p className="mt-1 text-xs text-gray-500">Allergens come from the parent ingredient — edit them on the ingredient.</p>
           </div>
         </div>
 
@@ -433,5 +434,13 @@ export default function NewMaterialPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function NewMaterialPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-gray-500">Loading…</div>}>
+      <NewMaterialForm />
+    </Suspense>
   );
 }

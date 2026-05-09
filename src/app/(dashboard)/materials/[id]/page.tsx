@@ -213,7 +213,7 @@ export default function MaterialDetailPage({
       setMaterialId(id);
       const supabase = createClient();
       const [{ data }, { data: suppData }] = await Promise.all([
-        supabase.from("raw_materials").select("*, suppliers(id, name)").eq("id", id).single(),
+        supabase.from("raw_materials").select("*, suppliers(id, name), ingredients(id, name, unit, allergens)").eq("id", id).single(),
         supabase.from("suppliers").select("id, name").eq("is_active", true).order("name"),
       ]);
       setMat(data);
@@ -240,7 +240,7 @@ export default function MaterialDetailPage({
     // Refresh the material data
     const { data } = await supabase
       .from("raw_materials")
-      .select("*, suppliers(id, name)")
+      .select("*, suppliers(id, name), ingredients(id, name, unit, allergens)")
       .eq("id", materialId)
       .single();
     setMat(data);
@@ -261,7 +261,7 @@ export default function MaterialDetailPage({
   if (permLoading || fetching) return <div className="p-8 text-center text-sm text-gray-500">Loading…</div>;
   if (!mat) return <div className="p-8 text-center text-sm text-gray-500">Material not found.</div>;
 
-  const allergenLabels = (mat.allergens || []).map((key: string) => {
+  const allergenLabels = (mat.ingredients?.allergens || []).map((key: string) => {
     const found = ALLERGENS.find((a) => a.value === key);
     return found ? found.label : key;
   });
@@ -381,12 +381,43 @@ export default function MaterialDetailPage({
         </div>
       </div>
 
-      {/* ── Allergens ──────────────────────────────── */}
-      <AllergenEditor
-        allergens={mat.allergens || []}
-        allergenNotes={mat.allergen_notes || ""}
-        onSave={saveField}
-      />
+      {/* ── Ingredient (with inherited allergens) ─── */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-900">Ingredient</h2>
+          {mat.ingredients?.id && (
+            <Link href={`/ingredients/${mat.ingredients.id}`}
+              className="text-xs font-medium text-blue-600 hover:text-blue-800">
+              View ingredient →
+            </Link>
+          )}
+        </div>
+        {mat.ingredients ? (
+          <div className="space-y-2">
+            <p className="text-base font-medium text-gray-900">{mat.ingredients.name}</p>
+            <p className="text-xs text-gray-500">Recipe unit: {mat.ingredients.unit}</p>
+            <div className="pt-2">
+              <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-1.5">Allergens (inherited)</p>
+              {allergenLabels.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {allergenLabels.map((label: string) => (
+                    <span key={label} className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-800">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs text-gray-400">None</span>
+              )}
+              <p className="mt-1.5 text-xs text-gray-500">
+                Allergens come from the parent ingredient and apply to every material under it.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400 italic">Not linked to an ingredient.</p>
+        )}
+      </div>
 
       {/* ── Identification ─────────────────────────── */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -445,104 +476,3 @@ export default function MaterialDetailPage({
   );
 }
 
-// ── Allergen editor (checkboxes + notes) ─────────────────────
-
-function AllergenEditor({
-  allergens, allergenNotes, onSave,
-}: {
-  allergens: string[]; allergenNotes: string;
-  onSave: (field: string, value: any) => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draftAllergens, setDraftAllergens] = useState<string[]>(allergens);
-  const [draftNotes, setDraftNotes] = useState(allergenNotes);
-  const [saving, setSaving] = useState(false);
-
-  const allergenLabels = allergens.map((key) => {
-    const found = ALLERGENS.find((a) => a.value === key);
-    return found ? found.label : key;
-  });
-
-  const toggleDraft = (value: string) => {
-    setDraftAllergens((prev) =>
-      prev.includes(value) ? prev.filter((a) => a !== value) : [...prev, value]
-    );
-  };
-
-  const save = async () => {
-    setSaving(true);
-    // Save allergens array — the parent's onSave persists and refreshes
-    await onSave("allergens", draftAllergens);
-    // Save notes separately
-    await onSave("allergen_notes", draftNotes || null);
-    setSaving(false);
-    setEditing(false);
-  };
-
-  const cancel = () => {
-    setDraftAllergens(allergens);
-    setDraftNotes(allergenNotes);
-    setEditing(false);
-  };
-
-  const hasAllergens = allergenLabels.length > 0 || allergenNotes;
-  const borderColor = hasAllergens ? "border-orange-200" : "border-gray-200";
-  const bgColor = hasAllergens ? "bg-orange-50" : "bg-white";
-
-  if (!editing) {
-    return (
-      <div className={`rounded-xl border ${borderColor} ${bgColor} p-6 shadow-sm group cursor-pointer`}
-        onClick={() => setEditing(true)} title="Click to edit allergens">
-        <div className="flex items-center gap-2 mb-3">
-          <AlertTriangle size={18} className={hasAllergens ? "text-orange-600" : "text-gray-400"} />
-          <h2 className={`text-lg font-semibold ${hasAllergens ? "text-orange-900" : "text-gray-900"}`}>Allergens</h2>
-          <Pencil size={12} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-        </div>
-        {allergenLabels.length > 0 ? (
-          <div className="flex flex-wrap gap-2 mb-2">
-            {allergenLabels.map((label) => (
-              <span key={label} className="rounded-full bg-orange-100 px-3 py-1 text-sm font-medium text-orange-800">
-                {label}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-400 italic">No allergens — click to add</p>
-        )}
-        {allergenNotes && <p className="text-sm text-orange-700 mt-2">{allergenNotes}</p>}
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
-        <AlertTriangle size={18} className="text-blue-600" />
-        <h2 className="text-lg font-semibold text-blue-900">Allergens</h2>
-      </div>
-      <div className="flex flex-wrap gap-3 mb-4">
-        {ALLERGENS.map((a) => (
-          <label key={a.value} className="inline-flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={draftAllergens.includes(a.value)}
-              onChange={() => toggleDraft(a.value)}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-            {a.label}
-          </label>
-        ))}
-      </div>
-      <input type="text" value={draftNotes} onChange={(e) => setDraftNotes(e.target.value)}
-        placeholder="Additional allergen notes (cross-contamination, etc.)"
-        className="block w-full rounded border border-blue-300 px-2 py-1.5 text-sm mb-3 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-      <div className="flex gap-2">
-        <button onClick={save} disabled={saving}
-          className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-          {saving ? "Saving..." : "Save Allergens"}
-        </button>
-        <button onClick={cancel}
-          className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}

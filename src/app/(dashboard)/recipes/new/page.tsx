@@ -18,7 +18,7 @@ export default function NewRecipePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [materials, setMaterials] = useState<any[]>([]);
+  const [ingredientOptions, setIngredientOptions] = useState<any[]>([]);
   const [existingProducts, setExistingProducts] = useState<any[]>([]);
 
   const [name, setName] = useState("");
@@ -35,18 +35,18 @@ export default function NewRecipePage() {
   const [existingProductId, setExistingProductId] = useState("");
 
   const [ingredientData, setIngredientData] = useState<SectionedIngredients>({
-    unsectioned: [{ raw_material_id: "", quantity: "", unit: "", notes: "" }],
+    unsectioned: [{ ingredient_id: "", quantity: "", unit: "", notes: "" }],
     sections: [],
   });
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient();
-      const [{ data: mats }, { data: prods }] = await Promise.all([
-        supabase.from("raw_materials").select("id, name, unit").eq("is_active", true).order("name"),
+      const [{ data: ings }, { data: prods }] = await Promise.all([
+        supabase.from("ingredients").select("id, name, unit").eq("is_active", true).order("name"),
         supabase.from("products").select("id, name, sku").eq("is_active", true).order("name"),
       ]);
-      setMaterials(mats || []);
+      setIngredientOptions(ings || []);
       setExistingProducts(prods || []);
     };
     load();
@@ -166,12 +166,12 @@ export default function NewRecipePage() {
     // 3. Create sections and insert ingredients
     let globalSortOrder = 0;
 
-    const validUnsectioned = ingredientData.unsectioned.filter((i) => i.raw_material_id && i.quantity);
+    const validUnsectioned = ingredientData.unsectioned.filter((i) => i.ingredient_id && i.quantity);
     if (validUnsectioned.length > 0) {
       const { error: ingErr } = await supabase.from("recipe_version_ingredients").insert(
         validUnsectioned.map((ing) => ({
           recipe_version_id: version.id,
-          raw_material_id: ing.raw_material_id,
+          ingredient_id: ing.ingredient_id,
           quantity: parseFloat(ing.quantity),
           unit: ing.unit,
           notes: ing.notes || null,
@@ -199,12 +199,12 @@ export default function NewRecipePage() {
 
       if (secErr) { setError("Section failed: " + secErr.message); setLoading(false); return; }
 
-      const validIngs = section.ingredients.filter((i) => i.raw_material_id && i.quantity);
+      const validIngs = section.ingredients.filter((i) => i.ingredient_id && i.quantity);
       if (validIngs.length > 0) {
         const { error: ingErr } = await supabase.from("recipe_version_ingredients").insert(
           validIngs.map((ing) => ({
             recipe_version_id: version.id,
-            raw_material_id: ing.raw_material_id,
+            ingredient_id: ing.ingredient_id,
             quantity: parseFloat(ing.quantity),
             unit: ing.unit,
             notes: ing.notes || null,
@@ -220,12 +220,12 @@ export default function NewRecipePage() {
     const allIngredients = [
       ...ingredientData.unsectioned,
       ...ingredientData.sections.flatMap((s) => s.ingredients),
-    ].filter((i) => i.raw_material_id && i.quantity);
+    ].filter((i) => i.ingredient_id && i.quantity);
     if (allIngredients.length > 0) {
       await supabase.from("recipe_ingredients").insert(
         allIngredients.map((ing, idx) => ({
           recipe_id: recipe.id,
-          raw_material_id: ing.raw_material_id,
+          ingredient_id: ing.ingredient_id,
           quantity: parseFloat(ing.quantity),
           unit: ing.unit,
           notes: ing.notes || null,
@@ -370,7 +370,7 @@ export default function NewRecipePage() {
         <SectionedIngredientEditor
           data={ingredientData}
           onChange={setIngredientData}
-          materials={materials}
+          ingredients={ingredientOptions}
         />
 
         {/* Instructions */}

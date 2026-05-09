@@ -287,6 +287,16 @@ export const SIDEBAR_NAV: NavItem[] = [
     permission: "batches.view",
   },
   {
+    title: "Ingredients",
+    href: "/ingredients",
+    icon: "FlaskConical",
+    permission: "ingredients.view",
+    children: [
+      { title: "All Ingredients", href: "/ingredients", icon: "List", permission: "ingredients.view" },
+      { title: "Add Ingredient", href: "/ingredients/new", icon: "Plus", permission: "ingredients.create" },
+    ],
+  },
+  {
     title: "Materials",
     href: "/materials",
     icon: "Wheat",

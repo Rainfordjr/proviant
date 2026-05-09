@@ -6,7 +6,7 @@ import { UnitSelect } from "@/components/ui/unit-select";
 // ── Types exposed to parent forms ─────────────────────────────
 
 export interface IngredientRow {
-  raw_material_id: string;
+  ingredient_id: string;
   quantity: string;
   unit: string;
   notes: string;
@@ -32,7 +32,7 @@ export interface SectionedIngredients {
 interface Props {
   data: SectionedIngredients;
   onChange: (data: SectionedIngredients) => void;
-  materials: { id: string; name: string; unit: string }[];
+  ingredients: { id: string; name: string; unit: string }[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ type MoveTarget = "general" | string; // string = section key
 
 // ── Component ──────────────────────────────────────────────────
 
-export function SectionedIngredientEditor({ data, onChange, materials }: Props) {
+export function SectionedIngredientEditor({ data, onChange, ingredients }: Props) {
   const hasSections = data.sections.length > 0;
 
   // ─ Move an ingredient from one location to another ──────────
@@ -113,7 +113,7 @@ export function SectionedIngredientEditor({ data, onChange, materials }: Props) 
   const addUnsectioned = () =>
     onChange({
       ...data,
-      unsectioned: [...data.unsectioned, { raw_material_id: "", quantity: "", unit: "", notes: "" }],
+      unsectioned: [...data.unsectioned, { ingredient_id: "", quantity: "", unit: "", notes: "" }],
     });
 
   const removeUnsectioned = (idx: number) =>
@@ -122,9 +122,9 @@ export function SectionedIngredientEditor({ data, onChange, materials }: Props) 
   const updateUnsectioned = (idx: number, field: keyof IngredientRow, value: string) => {
     const updated = [...data.unsectioned];
     updated[idx] = { ...updated[idx], [field]: value };
-    if (field === "raw_material_id") {
-      const mat = materials.find((m) => m.id === value);
-      if (mat) updated[idx].unit = mat.unit;
+    if (field === "ingredient_id") {
+      const ing = ingredients.find((m) => m.id === value);
+      if (ing) updated[idx].unit = ing.unit;
     }
     onChange({ ...data, unsectioned: updated });
   };
@@ -135,14 +135,14 @@ export function SectionedIngredientEditor({ data, onChange, materials }: Props) 
       ...data,
       sections: [
         ...data.sections,
-        { key: newSectionKey(), name: "", notes: "", ingredients: [{ raw_material_id: "", quantity: "", unit: "", notes: "" }] },
+        { key: newSectionKey(), name: "", notes: "", ingredients: [{ ingredient_id: "", quantity: "", unit: "", notes: "" }] },
       ],
     });
 
   const removeSection = (sIdx: number) => {
     // Move any ingredients back to unsectioned before removing
     const section = data.sections[sIdx];
-    const remainingIngs = section.ingredients.filter((i) => i.raw_material_id);
+    const remainingIngs = section.ingredients.filter((i) => i.ingredient_id);
     onChange({
       ...data,
       unsectioned: [...data.unsectioned, ...remainingIngs],
@@ -167,7 +167,7 @@ export function SectionedIngredientEditor({ data, onChange, materials }: Props) 
     const sections = [...data.sections];
     sections[sIdx] = {
       ...sections[sIdx],
-      ingredients: [...sections[sIdx].ingredients, { raw_material_id: "", quantity: "", unit: "", notes: "" }],
+      ingredients: [...sections[sIdx].ingredients, { ingredient_id: "", quantity: "", unit: "", notes: "" }],
     };
     onChange({ ...data, sections });
   };
@@ -185,9 +185,9 @@ export function SectionedIngredientEditor({ data, onChange, materials }: Props) 
     const sections = [...data.sections];
     const ings = [...sections[sIdx].ingredients];
     ings[iIdx] = { ...ings[iIdx], [field]: value };
-    if (field === "raw_material_id") {
-      const mat = materials.find((m) => m.id === value);
-      if (mat) ings[iIdx].unit = mat.unit;
+    if (field === "ingredient_id") {
+      const ing = ingredients.find((m) => m.id === value);
+      if (ing) ings[iIdx].unit = ing.unit;
     }
     sections[sIdx] = { ...sections[sIdx], ingredients: ings };
     onChange({ ...data, sections });
@@ -246,14 +246,14 @@ export function SectionedIngredientEditor({ data, onChange, materials }: Props) 
         </div>
         <div className={showMove ? "col-span-3" : "col-span-3"}>
           <select
-            value={ing.raw_material_id}
-            onChange={(e) => onUpdate("raw_material_id", e.target.value)}
+            value={ing.ingredient_id}
+            onChange={(e) => onUpdate("ingredient_id", e.target.value)}
             className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="">Select material...</option>
-            {materials.map((mat) => (
-              <option key={mat.id} value={mat.id}>
-                {mat.name}
+            <option value="">Select ingredient...</option>
+            {ingredients.map((ing) => (
+              <option key={ing.id} value={ing.id}>
+                {ing.name}
               </option>
             ))}
           </select>
@@ -317,7 +317,7 @@ export function SectionedIngredientEditor({ data, onChange, materials }: Props) 
   const columnHeader = (
     <div className="grid grid-cols-12 gap-3 text-xs font-semibold uppercase text-gray-500 px-1">
       <div className="col-span-1"></div>
-      <div className="col-span-3">Material</div>
+      <div className="col-span-3">Ingredient</div>
       <div className="col-span-1">Qty</div>
       <div className="col-span-2">Unit</div>
       <div className={hasSections ? "col-span-1" : "col-span-2"}>Notes</div>
@@ -397,7 +397,7 @@ export function SectionedIngredientEditor({ data, onChange, materials }: Props) 
               className="flex-1 bg-transparent border-none text-base font-semibold text-blue-900 placeholder-blue-400 focus:outline-none"
             />
             <span className="text-xs text-blue-500 font-medium">
-              {section.ingredients.filter((i) => i.raw_material_id).length} items
+              {section.ingredients.filter((i) => i.ingredient_id).length} items
             </span>
             <button
               type="button"
