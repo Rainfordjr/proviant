@@ -212,7 +212,10 @@ export function Sidebar({ collapsed, onToggle, drawerOpen, onCloseDrawer }: Side
       <aside
         ref={sidebarRef}
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen flex flex-col border-r border-gray-200 bg-white transition-transform duration-300 lg:transition-all w-64",
+          // h-dvh (not h-screen) so the sidebar matches the actually-visible
+          // viewport on mobile — Chrome's URL bar otherwise pushes the bottom
+          // 56px of nav below the fold and the inner scroll can't reach it.
+          "fixed left-0 top-0 z-40 h-dvh flex flex-col border-r border-gray-200 bg-white transition-transform duration-300 lg:transition-all w-64",
           // On mobile, slide off-screen unless drawerOpen. Always full 64 width on mobile.
           drawerOpen ? "translate-x-0" : "-translate-x-full",
           // On lg+, always visible; respect collapsed state for width.
@@ -254,7 +257,10 @@ export function Sidebar({ collapsed, onToggle, drawerOpen, onCloseDrawer }: Side
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-3">
+        <nav
+          className="flex-1 overflow-y-auto overscroll-contain p-3"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
           <ul className="space-y-1">
             {navReady &&
               SIDEBAR_NAV.filter(isItemVisible).map((item) => {
