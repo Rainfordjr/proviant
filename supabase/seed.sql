@@ -55,7 +55,9 @@ INSERT INTO suppliers (id, org_id, name, contact_name, email, phone, account_num
   ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Pacific NW Flour Co.', 'Sarah Chen', 'sarah@pnwflour.com', '206-555-0101', 'PNW-4821', 'Net 30'),
   ('b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Cascade Dairy', 'Mike Johnson', 'mike@cascadedairy.com', '206-555-0102', 'CD-10073', 'Net 15'),
   ('b0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Mountain Sugar Supply', 'Lisa Park', 'lisa@mountainsugar.com', '425-555-0103', 'MSS-2299', 'Net 30'),
-  ('b0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Choco Source Inc.', 'Tom Baker', 'tom@chocosource.com', '503-555-0104', 'CSI-0587', '2/10 Net 30');
+  ('b0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Choco Source Inc.', 'Tom Baker', 'tom@chocosource.com', '503-555-0104', 'CSI-0587', '2/10 Net 30'),
+  ('b0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Olympic Dairy Co.', 'Jenna Wallace', 'jenna@olympicdairy.com', '360-555-0105', 'OLY-3041', 'Net 15'),
+  ('b0000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'Northwest Baking Supply', 'Eric Park', 'eric@nwbaking.com', '425-555-0106', 'NWB-7702', 'Net 30');
 
 -- Ingredients (abstract, reused across vendor SKUs)
 INSERT INTO ingredients (id, org_id, name, unit, allergens) VALUES
@@ -203,7 +205,57 @@ INSERT INTO raw_materials (
    'f0000000-0000-0000-0000-000000000001',
    'All-Purpose Flour - Mountain', 'Mountain All-Purpose Bleached Flour', 'RM10001-ALT',
    'b0000000-0000-0000-0000-000000000003', 'lbs', 'Raw Material', 'Flour', 'Mountain',
-   17.00, '50 lb', 'Ambient', 12, 'Months', 6, 'Months', 100, 75);
+   17.00, '50 lb', 'Ambient', 12, 'Months', 6, 'Months', 100, 75),
+
+  -- Olympic Dairy alts: milk, butter, eggs
+  ('d0000000-0000-0000-0000-000000000021', 'a0000000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-000000000004',
+   'Whole Milk - Olympic', 'Olympic Grass-Fed Whole Milk', 'RM10010-ALT',
+   'b0000000-0000-0000-0000-000000000005', 'gallons', 'Raw Material', 'Dairy', 'Olympic',
+   4.95, '1 gal', 'Refrigerated', 14, 'Days', 7, 'Days', 20, 9),
+
+  ('d0000000-0000-0000-0000-000000000022', 'a0000000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-000000000005',
+   'Butter (unsalted) - Olympic', 'Olympic Cultured Unsalted Butter', 'RM10011-ALT2',
+   'b0000000-0000-0000-0000-000000000005', 'lbs', 'Raw Material', 'Dairy', 'Olympic',
+   6.20, '1 lb block', 'Refrigerated', 6, 'Months', 14, 'Days', 30, 18),
+
+  ('d0000000-0000-0000-0000-000000000023', 'a0000000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-000000000012',
+   'Eggs - Olympic', 'Olympic Cage-Free Large Brown Eggs', 'RM10012-ALT',
+   'b0000000-0000-0000-0000-000000000005', 'dozen', 'Raw Material', 'Dairy', 'Olympic',
+   4.30, '15 dozen case', 'Refrigerated', 28, 'Days', NULL, NULL, 20, 22),
+
+  -- Northwest Baking alts: sugar, salt, baking powder, vanilla, whole wheat flour
+  ('d0000000-0000-0000-0000-000000000024', 'a0000000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-000000000006',
+   'Granulated Sugar - NW Baking', 'NW Baking Pure Cane Sugar', 'RM10020-ALT',
+   'b0000000-0000-0000-0000-000000000006', 'lbs', 'Raw Material', 'Sugar', 'NW Baking',
+   26.50, '50 lb', 'Ambient', 24, 'Months', NULL, NULL, 50, 100),
+
+  ('d0000000-0000-0000-0000-000000000025', 'a0000000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-000000000010',
+   'Salt - NW Baking', 'NW Baking Kosher Salt', 'RM10022-ALT',
+   'b0000000-0000-0000-0000-000000000006', 'lbs', 'Raw Material', 'Seasoning', 'NW Baking',
+   7.50, '25 lb', 'Ambient', 60, 'Months', NULL, NULL, 10, 18),
+
+  ('d0000000-0000-0000-0000-000000000026', 'a0000000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-000000000013',
+   'Baking Powder - NW Baking', 'NW Baking Aluminum-Free Baking Powder', 'RM10023-ALT',
+   'b0000000-0000-0000-0000-000000000006', 'lbs', 'Raw Material', 'Leavening', 'NW Baking',
+   6.80, '5 lb', 'Ambient', 18, 'Months', 6, 'Months', 5, 8),
+
+  ('d0000000-0000-0000-0000-000000000027', 'a0000000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-000000000014',
+   'Vanilla Extract - NW Baking', 'NW Baking Madagascar Vanilla Extract', 'RM10024-ALT',
+   'b0000000-0000-0000-0000-000000000006', 'oz', 'Raw Material', 'Flavoring', 'NW Baking',
+   2.95, '16 oz bottle', 'Ambient', 48, 'Months', 12, 'Months', 20, 32),
+
+  ('d0000000-0000-0000-0000-000000000028', 'a0000000-0000-0000-0000-000000000001',
+   'f0000000-0000-0000-0000-000000000002',
+   'Whole Wheat Flour - NW Baking', 'NW Baking Stone-Ground Whole Wheat', 'RM10002-ALT',
+   'b0000000-0000-0000-0000-000000000006', 'lbs', 'Raw Material', 'Flour', 'NW Baking',
+   21.00, '50 lb', 'Ambient', 10, 'Months', 4, 'Months', 75, 60);
 
 -- Material Lots
 INSERT INTO material_lots (id, material_id, lot_number, quantity, quantity_remaining, expiry_date, received_at) VALUES
@@ -213,7 +265,16 @@ INSERT INTO material_lots (id, material_id, lot_number, quantity, quantity_remai
   ('e0000000-0000-0000-0000-000000000004', 'd0000000-0000-0000-0000-000000000005', 'BT-2260-A', 60, 45, '2026-06-01', '2026-03-20'),
   ('e0000000-0000-0000-0000-000000000005', 'd0000000-0000-0000-0000-000000000006', 'SG-2260-A', 200, 200, '2027-01-01', '2026-03-10'),
   ('e0000000-0000-0000-0000-000000000006', 'd0000000-0000-0000-0000-000000000011', 'CC-2260-A', 150, 150, '2027-03-01', '2026-04-01'),
-  ('e0000000-0000-0000-0000-000000000007', 'd0000000-0000-0000-0000-000000000012', 'EG-2260-A', 30, 30, '2026-05-01', '2026-04-05');
+  ('e0000000-0000-0000-0000-000000000007', 'd0000000-0000-0000-0000-000000000012', 'EG-2260-A', 30, 30, '2026-05-01', '2026-04-05'),
+  -- Lots for alt-vendor SKUs (showing dual stock per ingredient)
+  ('e0000000-0000-0000-0000-000000000008', 'd0000000-0000-0000-0000-000000000019', 'BT-PNW-2260', 12, 12, '2026-06-15', '2026-04-12'),
+  ('e0000000-0000-0000-0000-000000000009', 'd0000000-0000-0000-0000-000000000020', 'FL-MTN-2260', 75, 75, '2026-10-20', '2026-04-10'),
+  ('e0000000-0000-0000-0000-000000000010', 'd0000000-0000-0000-0000-000000000021', 'ML-OLY-2260', 9, 9, '2026-04-22', '2026-04-15'),
+  ('e0000000-0000-0000-0000-000000000011', 'd0000000-0000-0000-0000-000000000022', 'BT-OLY-2260', 18, 18, '2026-06-20', '2026-04-14'),
+  ('e0000000-0000-0000-0000-000000000012', 'd0000000-0000-0000-0000-000000000023', 'EG-OLY-2260', 22, 22, '2026-05-08', '2026-04-15'),
+  ('e0000000-0000-0000-0000-000000000013', 'd0000000-0000-0000-0000-000000000024', 'SG-NWB-2260', 100, 100, '2027-02-01', '2026-04-08'),
+  ('e0000000-0000-0000-0000-000000000014', 'd0000000-0000-0000-0000-000000000026', 'BP-NWB-2260', 8, 8, '2026-09-01', '2026-04-09'),
+  ('e0000000-0000-0000-0000-000000000015', 'd0000000-0000-0000-0000-000000000028', 'WW-NWB-2260', 60, 60, '2026-08-30', '2026-04-11');
 
 -- ============================================================
 -- RECIPES
@@ -657,9 +718,21 @@ INSERT INTO recipe_version_ingredients (recipe_version_id, ingredient_id, quanti
 -- ingredients = any vendor SKU under that ingredient is fine.
 -- ============================================================
 INSERT INTO recipe_ingredient_substitutions (recipe_id, ingredient_id, raw_material_id) VALUES
+  -- Sourdough Loaf: bread flour locked to PNW (no Mountain alt)
   ('aa000000-0000-0000-0000-000000000002',
    'f0000000-0000-0000-0000-000000000003',
-   'd0000000-0000-0000-0000-000000000003');
+   'd0000000-0000-0000-0000-000000000003'),
+  -- Cinnamon Roll: butter accepts Cascade OR Olympic (NOT the PNW alt — different flavor profile)
+  ('aa000000-0000-0000-0000-000000000003',
+   'f0000000-0000-0000-0000-000000000005',
+   'd0000000-0000-0000-0000-000000000005'),
+  ('aa000000-0000-0000-0000-000000000003',
+   'f0000000-0000-0000-0000-000000000005',
+   'd0000000-0000-0000-0000-000000000022'),
+  -- Cinnamon Roll: milk locked to Cascade (Olympic costs more)
+  ('aa000000-0000-0000-0000-000000000003',
+   'f0000000-0000-0000-0000-000000000004',
+   'd0000000-0000-0000-0000-000000000004');
 
 -- ============================================================
 -- DEV PROJECTS
