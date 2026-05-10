@@ -1,12 +1,12 @@
 "use client";
 
-import { Bell, Search, User, LogOut, Shield } from "lucide-react";
+import { Bell, Search, User, LogOut, Shield, Menu } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-export function Header() {
+export function Header({ onOpenDrawer }: { onOpenDrawer?: () => void } = {}) {
   const router = useRouter();
   const [userName, setUserName] = useState("");
   const [userInitials, setUserInitials] = useState("");
@@ -51,9 +51,19 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
-      {/* Search */}
-      <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 w-96">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 sm:px-6">
+      {/* Mobile hamburger */}
+      <button
+        type="button"
+        onClick={onOpenDrawer}
+        className="rounded-lg p-2 -ml-2 text-gray-700 hover:bg-gray-100 lg:hidden"
+        aria-label="Open menu"
+      >
+        <Menu size={22} />
+      </button>
+
+      {/* Search — hidden below sm to keep mobile header tidy */}
+      <div className="hidden sm:flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 w-full max-w-md lg:w-96">
         <Search size={16} className="text-gray-400" />
         <input
           type="text"
@@ -61,6 +71,10 @@ export function Header() {
           className="flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400"
         />
       </div>
+
+      {/* Spacer pushes user menu right when search is hidden */}
+      <div className="flex-1 sm:hidden" />
+
 
       {/* Right side */}
       <div className="flex items-center gap-4">
@@ -74,12 +88,12 @@ export function Header() {
         <div className="relative">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 sm:px-3"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 text-xs font-semibold">
               {userInitials || <User size={16} />}
             </div>
-            <span className="font-medium">{userName || "…"}</span>
+            <span className="hidden font-medium sm:inline">{userName || "…"}</span>
           </button>
 
           {showMenu && (

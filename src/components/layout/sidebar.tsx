@@ -25,9 +25,11 @@ const iconMap: Record<string, React.ElementType> = {
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  drawerOpen: boolean;
+  onCloseDrawer: () => void;
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, drawerOpen, onCloseDrawer }: SidebarProps) {
   const pathname = usePathname();
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [flyout, setFlyout] = useState<string | null>(null);
@@ -210,23 +212,42 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <aside
         ref={sidebarRef}
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen border-r border-gray-200 bg-white transition-all duration-300",
-          collapsed ? "w-16" : "w-64"
+          "fixed left-0 top-0 z-40 h-screen border-r border-gray-200 bg-white transition-transform duration-300 lg:transition-all w-64",
+          // On mobile, slide off-screen unless drawerOpen. Always full 64 width on mobile.
+          drawerOpen ? "translate-x-0" : "-translate-x-full",
+          // On lg+, always visible; respect collapsed state for width.
+          "lg:translate-x-0",
+          collapsed ? "lg:w-16" : "lg:w-64"
         )}
       >
         {/* Header */}
         <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
-          {!collapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-sm">
-                P
-              </div>
-              <span className="text-lg font-bold text-gray-900">{APP_NAME}</span>
-            </Link>
-          )}
+          {/* Brand: hidden when desktop-collapsed; always visible in mobile drawer */}
+          <Link
+            href="/dashboard"
+            className={cn(
+              "flex items-center gap-2",
+              collapsed && "lg:hidden"
+            )}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-sm">
+              P
+            </div>
+            <span className="text-lg font-bold text-gray-900">{APP_NAME}</span>
+          </Link>
+          {/* Mobile close button (drawer mode) */}
+          <button
+            onClick={onCloseDrawer}
+            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 lg:hidden"
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
+          {/* Desktop collapse/expand toggle */}
           <button
             onClick={onToggle}
-            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100"
+            className="hidden rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 lg:block"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? <Menu size={20} /> : <X size={20} />}
           </button>
