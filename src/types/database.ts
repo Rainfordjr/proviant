@@ -95,6 +95,9 @@ export interface Batch {
   assigned_to: string | null;
   estimated_duration_hours: number | null;
   priority: "low" | "normal" | "high" | "urgent";
+  // Production line scheduling (satellite app)
+  production_line_id: string | null;
+  scheduled_for: string | null;
   created_at: string;
   updated_at: string;
   // Joined fields
@@ -732,4 +735,15 @@ export interface BatchProductAllocation {
   created_at: string;
   // Joined fields
   product?: Product;
+}
+
+export interface ProductionLine {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 }

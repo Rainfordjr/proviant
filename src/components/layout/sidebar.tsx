@@ -7,7 +7,7 @@ import {
   Warehouse, Truck, Settings, ChevronDown, Menu, X,
   List, Plus, ClipboardCheck, FileText, BarChart3, Receipt, BarChart, ChefHat, FlaskConical,
   Shield, Users, Store, MapPin, CreditCard, DollarSign, Building2, ClipboardList,
-  CalendarDays, CheckCircle2, Palette, Wallet,
+  CalendarDays, CheckCircle2, Palette, Wallet, Factory,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ const iconMap: Record<string, React.ElementType> = {
   Warehouse, Truck, Settings, List, Plus, ClipboardCheck,
   FileText, BarChart3, Receipt, BarChart, ChefHat, FlaskConical,
   Shield, Users, Store, MapPin, CreditCard, DollarSign, Building2, ClipboardList,
-  CalendarDays, CheckCircle2, Palette, Wallet,
+  CalendarDays, CheckCircle2, Palette, Wallet, Factory,
 };
 
 interface SidebarProps {

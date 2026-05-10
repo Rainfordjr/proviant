@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ChefHat, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ChefHat, ShoppingBag, Factory, CalendarDays } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { generateBatchNumber } from "@/lib/utils";
 import { useRequirePermission } from "@/lib/usePermission";
@@ -16,12 +16,15 @@ function NewBatchForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recipes, setRecipes] = useState<any[]>([]);
+  const [lines, setLines] = useState<{ id: string; name: string }[]>([]);
 
   const [batchNumber, setBatchNumber] = useState(generateBatchNumber());
   const [recipeId, setRecipeId] = useState(preselectedRecipeId);
   const [status, setStatus] = useState("planned");
   const [quantityProduced, setQuantityProduced] = useState("");
   const [notes, setNotes] = useState("");
+  const [productionLineId, setProductionLineId] = useState("");
+  const [scheduledFor, setScheduledFor] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -47,6 +50,14 @@ function NewBatchForm() {
       });
 
       setRecipes(recipesWithProducts);
+
+      const { data: lineData } = await supabase
+        .from("production_lines")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+      setLines((lineData || []) as { id: string; name: string }[]);
     };
     fetchData();
   }, []);
@@ -77,6 +88,8 @@ function NewBatchForm() {
       produced_at: status === "completed" ? new Date().toISOString() : null,
       notes: notes || null,
       created_by: user.id,
+      production_line_id: productionLineId || null,
+      scheduled_for: scheduledFor ? new Date(scheduledFor).toISOString() : null,
     });
 
     setLoading(false);
@@ -175,6 +188,34 @@ function NewBatchForm() {
             <label htmlFor="qty" className="block text-sm font-medium text-gray-700">Quantity Produced</label>
             <input id="qty" type="number" step="0.01" min="0" value={quantityProduced} onChange={(e) => setQuantityProduced(e.target.value)}
               placeholder="Leave blank if not done"
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </div>
+        </div>
+
+        {/* Scheduling: production line + when */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="line" className="block text-sm font-medium text-gray-700">
+              <span className="inline-flex items-center gap-1"><Factory size={14} /> Production Line</span>
+            </label>
+            <select id="line" value={productionLineId} onChange={(e) => setProductionLineId(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="">— Unassigned —</option>
+              {lines.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+            {lines.length === 0 && (
+              <p className="mt-1 text-xs text-gray-500">
+                No active lines. <Link href="/settings/production-lines" className="text-blue-600 hover:underline">Configure them</Link> to assign batches.
+              </p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="scheduled" className="block text-sm font-medium text-gray-700">
+              <span className="inline-flex items-center gap-1"><CalendarDays size={14} /> Scheduled For</span>
+            </label>
+            <input id="scheduled" type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)}
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
         </div>
