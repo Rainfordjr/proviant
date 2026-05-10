@@ -6,6 +6,7 @@ import { BATCH_STATUSES } from "@/lib/constants";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { notFound } from "next/navigation";
 import { ConsumptionScanner } from "@/components/batches/consumption-scanner";
+import { BulkConsumptionEditor } from "@/components/batches/bulk-consumption-editor";
 
 export default async function BatchDetailPage({
   params,
@@ -68,6 +69,86 @@ export default async function BatchDetailPage({
         consumed_qty: consumedByIngredient.get(r.ingredient_id) ?? 0,
       };
     });
+  }
+
+  // Fetch the org's production mode + the recipe's substitution allow-list +
+  // active lots, so after-action mode can show valid lot options per ingredient.
+  let productionMode: "controlled" | "after_action" = "controlled";
+  const { data: meRow } = await supabase.auth.getUser();
+  if (meRow?.user) {
+    const { data: prof } = await supabase.from("users").select("org_id").eq("id", meRow.user.id).single();
+    if (prof?.org_id) {
+      const { data: org } = await supabase.from("organizations").select("production_mode").eq("id", prof.org_id).single();
+      if (org?.production_mode === "after_action" || org?.production_mode === "controlled") {
+        productionMode = org.production_mode;
+      }
+    }
+  }
+
+  // Build lots-per-ingredient map for the bulk editor (after-action mode only).
+  type BulkLotOption = {
+    id: string;
+    lot_number: string;
+    raw_material_id: string;
+    raw_material_name: string;
+    quantity_remaining: number;
+    unit: string;
+    expiry_date: string | null;
+  };
+  const lotsByIngredient: Record<string, BulkLotOption[]> = {};
+  if (productionMode === "after_action" && scannerLines.length > 0 && (batch as { recipes: { id: string } | null }).recipes?.id) {
+    const recipeId = (batch as { recipes: { id: string } }).recipes.id;
+    const ingredientIds = scannerLines.map((l) => l.ingredient_id);
+
+    // Substitution allow-lists for this recipe (per ingredient, may be empty)
+    const { data: subs } = await supabase
+      .from("recipe_ingredient_substitutions")
+      .select("ingredient_id, raw_material_id")
+      .eq("recipe_id", recipeId);
+    const allowedByIngredient = new Map<string, Set<string>>();
+    for (const s of subs ?? []) {
+      const ing = (s as { ingredient_id: string }).ingredient_id;
+      const mat = (s as { raw_material_id: string }).raw_material_id;
+      if (!allowedByIngredient.has(ing)) allowedByIngredient.set(ing, new Set());
+      allowedByIngredient.get(ing)!.add(mat);
+    }
+
+    // All active lots whose material satisfies one of the recipe's ingredients
+    const { data: lots } = await supabase
+      .from("material_lots")
+      .select("id, lot_number, quantity_remaining, expiry_date, raw_materials!inner(id, name, unit, ingredient_id, is_active)")
+      .gt("quantity_remaining", 0)
+      .in("raw_materials.ingredient_id", ingredientIds);
+
+    for (const lot of lots ?? []) {
+      // Supabase types `!inner` joins as an array; in practice with maybeSingle/single
+      // semantics on a 1:1 FK it's effectively the joined row. Normalize both shapes.
+      const rmRaw = (lot as unknown as { raw_materials: { id: string; name: string; unit: string; ingredient_id: string; is_active: boolean } | { id: string; name: string; unit: string; ingredient_id: string; is_active: boolean }[] | null }).raw_materials;
+      const rm = Array.isArray(rmRaw) ? rmRaw[0] : rmRaw;
+      if (!rm || !rm.is_active) continue;
+      const allowed = allowedByIngredient.get(rm.ingredient_id);
+      // Empty allow-list = any active material works. Non-empty = restricted.
+      if (allowed && !allowed.has(rm.id)) continue;
+      if (!lotsByIngredient[rm.ingredient_id]) lotsByIngredient[rm.ingredient_id] = [];
+      lotsByIngredient[rm.ingredient_id].push({
+        id: (lot as { id: string }).id,
+        lot_number: (lot as { lot_number: string }).lot_number,
+        raw_material_id: rm.id,
+        raw_material_name: rm.name,
+        quantity_remaining: Number((lot as { quantity_remaining: number }).quantity_remaining),
+        unit: rm.unit,
+        expiry_date: (lot as { expiry_date: string | null }).expiry_date,
+      });
+    }
+    // FIFO suggestion: sort lots by expiry asc within each ingredient
+    for (const ing of Object.keys(lotsByIngredient)) {
+      lotsByIngredient[ing].sort((a, b) => {
+        if (a.expiry_date && b.expiry_date) return a.expiry_date.localeCompare(b.expiry_date);
+        if (a.expiry_date) return -1;
+        if (b.expiry_date) return 1;
+        return 0;
+      });
+    }
   }
 
   // Fetch orders that reference this batch
@@ -143,9 +224,17 @@ export default async function BatchDetailPage({
         </div>
       </div>
 
-      {/* Consume materials (scan-to-consume) */}
+      {/* Consume materials — UI varies by org's production_mode */}
       {canEdit && scannerLines.length > 0 && (
-        <ConsumptionScanner batchId={id} lines={scannerLines} />
+        productionMode === "controlled" ? (
+          <ConsumptionScanner batchId={id} lines={scannerLines} />
+        ) : (
+          <BulkConsumptionEditor
+            batchId={id}
+            lines={scannerLines}
+            lotsByIngredient={lotsByIngredient}
+          />
+        )
       )}
 
       {/* Ingredients / Traceability */}

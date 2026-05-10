@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Lock, User, Building2 } from "lucide-react";
+import { Lock, User, Building2, Factory } from "lucide-react";
 
 export default function SettingsPage() {
   const [fullName, setFullName] = useState("");
@@ -19,6 +19,12 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [loadingPassword, setLoadingPassword] = useState(false);
+
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [productionMode, setProductionMode] = useState<"controlled" | "after_action">("after_action");
+  const [orgMsg, setOrgMsg] = useState("");
+  const [orgError, setOrgError] = useState("");
+  const [loadingOrg, setLoadingOrg] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -41,16 +47,45 @@ export default function SettingsPage() {
 
           const { data: org } = await supabase
             .from("organizations")
-            .select("name")
+            .select("name, production_mode")
             .eq("id", profile.org_id)
             .single();
 
-          if (org) setOrgName(org.name);
+          if (org) {
+            setOrgName(org.name);
+            setOrgId(profile.org_id);
+            const mode = (org as { production_mode?: string }).production_mode;
+            if (mode === "controlled" || mode === "after_action") {
+              setProductionMode(mode);
+            }
+          }
         }
       }
     }
     load();
   }, []);
+
+  async function handleOrgUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!orgId) return;
+    setLoadingOrg(true);
+    setOrgMsg("");
+    setOrgError("");
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("organizations")
+        .update({ production_mode: productionMode })
+        .eq("id", orgId);
+      if (error) {
+        setOrgError(error.message);
+      } else {
+        setOrgMsg("Organization settings saved.");
+      }
+    } finally {
+      setLoadingOrg(false);
+    }
+  }
 
   async function handleProfileUpdate(e: React.FormEvent) {
     e.preventDefault();
@@ -192,6 +227,47 @@ export default function SettingsPage() {
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {loadingProfile ? "Saving…" : "Save Profile"}
+          </button>
+        </div>
+      </form>
+
+      {/* Organization Section */}
+      <form onSubmit={handleOrgUpdate}>
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Factory size={18} /> Organization
+          </h2>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Production Mode
+            </label>
+            <select
+              value={productionMode}
+              onChange={(e) =>
+                setProductionMode(e.target.value as "controlled" | "after_action")
+              }
+              className="w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="after_action">After-action — record materials after the run</option>
+              <option value="controlled">Controlled — scan as you go, real-time</option>
+            </select>
+            <p className="mt-2 text-xs text-gray-500">
+              <strong>After-action:</strong> operators run the batch first, then enter what they used in a bulk form.{" "}
+              <strong>Controlled:</strong> the system gates production — operators scan each lot before consuming it.
+              Both modes enforce substitution rules identically; only the input UX differs.
+            </p>
+          </div>
+
+          {orgError && <p className="text-sm text-red-600">{orgError}</p>}
+          {orgMsg && <p className="text-sm text-green-600">{orgMsg}</p>}
+
+          <button
+            type="submit"
+            disabled={loadingOrg || !orgId}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loadingOrg ? "Saving…" : "Save Organization Settings"}
           </button>
         </div>
       </form>
