@@ -2,6 +2,8 @@ import { createAdminClient } from "@/lib/platformAdmin";
 import Link from "next/link";
 import { Building2, ChevronRight } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 const statusColors: Record<string, string> = {
   active: "bg-green-500/20 text-green-400",
   trial: "bg-blue-500/20 text-blue-400",

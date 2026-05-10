@@ -2,6 +2,8 @@ import { createAdminClient } from "@/lib/platformAdmin";
 import Link from "next/link";
 import { Plus, Edit2, Star } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminPlansPage() {
   const supabase = createAdminClient();
 

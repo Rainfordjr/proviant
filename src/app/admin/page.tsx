@@ -2,6 +2,8 @@ import { createAdminClient } from "@/lib/platformAdmin";
 import { Building2, Users, CreditCard, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminOverviewPage() {
   const supabase = createAdminClient();
 

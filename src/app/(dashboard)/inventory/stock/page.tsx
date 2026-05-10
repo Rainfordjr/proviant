@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/utils";
+import Link from "next/link";
+import { Plus } from "lucide-react";
 
 export default async function StockPage() {
   await requirePermission("inventory.view");
@@ -22,9 +24,17 @@ export default async function StockPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Stock Levels</h1>
-        <p className="text-sm text-gray-500">Current inventory of raw materials and active lots</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Stock Levels</h1>
+          <p className="text-sm text-gray-500">Current inventory of raw materials and active lots</p>
+        </div>
+        <Link
+          href="/inventory/lots/new"
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          <Plus size={16} /> Receive Lot
+        </Link>
       </div>
 
       {/* Stock summary cards */}
@@ -114,7 +124,11 @@ export default async function StockPage() {
 
               return (
                 <tr key={lot.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{lot.lot_number}</td>
+                  <td className="px-6 py-4 text-sm font-medium">
+                    <Link href={`/inventory/lots/${lot.id}`} className="text-blue-600 hover:text-blue-800">
+                      {lot.lot_number}
+                    </Link>
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-700">{lot.raw_materials?.name || "—"}</td>
                   <td className="px-6 py-4 text-sm text-gray-900">{lot.quantity_remaining} {lot.raw_materials?.unit || ""}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{lot.expiry_date ? formatDate(lot.expiry_date) : "N/A"}</td>

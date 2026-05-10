@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/platformAdmin";
 import { ReferralManager } from "@/components/admin/referral-manager";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminReferralsPage() {
   const supabase = createAdminClient();
 

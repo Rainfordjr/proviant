@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/platformAdmin";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminUsersPage() {
   const supabase = createAdminClient();
 

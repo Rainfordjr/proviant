@@ -1,10 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission, checkPermission } from "@/lib/permissions";
 import Link from "next/link";
 import { ArrowLeft, Package, Clock, ChefHat, FileText, ShoppingBag } from "lucide-react";
 import { BATCH_STATUSES } from "@/lib/constants";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { notFound } from "next/navigation";
+import { ConsumptionScanner } from "@/components/batches/consumption-scanner";
 
 export default async function BatchDetailPage({
   params,
@@ -12,6 +13,7 @@ export default async function BatchDetailPage({
   params: Promise<{ id: string }>;
 }) {
   await requirePermission("batches.view");
+  const canEdit = await checkPermission("batches.edit");
 
   const { id } = await params;
   const supabase = await createClient();
@@ -19,7 +21,7 @@ export default async function BatchDetailPage({
   // Fetch batch with recipe and product info
   const { data: batch } = await supabase
     .from("batches")
-    .select("*, recipes(id, name, yield_quantity, yield_unit), products(id, name, sku, category, unit)")
+    .select("*, recipes(id, name, yield_quantity, yield_unit, current_version_id), products(id, name, sku, category, unit)")
     .eq("id", id)
     .single();
 
@@ -28,8 +30,45 @@ export default async function BatchDetailPage({
   // Fetch batch ingredients with material lot and raw material info
   const { data: ingredients } = await supabase
     .from("batch_ingredients")
-    .select("*, material_lots(*, raw_materials(name, unit))")
+    .select("*, material_lots(*, raw_materials(name, unit, ingredient_id))")
     .eq("batch_id", id);
+
+  // Resolve recipe version → ingredient slots for the consumption scanner
+  const versionId =
+    (batch as { recipe_version_id: string | null }).recipe_version_id ??
+    (batch as { recipes: { current_version_id: string | null } | null }).recipes?.current_version_id ??
+    null;
+  let scannerLines: { rvi_id: string; ingredient_id: string; ingredient_name: string; required_qty: number; unit: string; consumed_qty: number }[] = [];
+  if (versionId) {
+    const { data: rvi } = await supabase
+      .from("recipe_version_ingredients")
+      .select("id, ingredient_id, quantity, unit, ingredients(name, unit)")
+      .eq("recipe_version_id", versionId)
+      .order("sort_order", { ascending: true });
+    const yieldQty = (batch as { recipes: { yield_quantity: number | null } | null }).recipes?.yield_quantity ?? null;
+    const produced = (batch as { quantity_produced: number | null }).quantity_produced ?? null;
+    const scale = yieldQty && yieldQty > 0 && produced && produced > 0 ? produced / yieldQty : 1;
+
+    // Tally what's already been consumed per ingredient_id
+    const consumedByIngredient = new Map<string, number>();
+    for (const bi of ingredients ?? []) {
+      const ingId = (bi as { material_lots: { raw_materials: { ingredient_id: string } | null } | null }).material_lots?.raw_materials?.ingredient_id;
+      if (!ingId) continue;
+      consumedByIngredient.set(ingId, (consumedByIngredient.get(ingId) ?? 0) + Number((bi as { quantity_used: number }).quantity_used));
+    }
+
+    scannerLines = (rvi ?? []).map((row) => {
+      const r = row as unknown as { id: string; ingredient_id: string; quantity: number; unit: string | null; ingredients: { name: string; unit: string } | null };
+      return {
+        rvi_id: r.id,
+        ingredient_id: r.ingredient_id,
+        ingredient_name: r.ingredients?.name || "Ingredient",
+        required_qty: Number((Number(r.quantity) * scale).toFixed(4)),
+        unit: r.unit || r.ingredients?.unit || "",
+        consumed_qty: consumedByIngredient.get(r.ingredient_id) ?? 0,
+      };
+    });
+  }
 
   // Fetch orders that reference this batch
   const { data: orderItems } = await supabase
@@ -103,6 +142,11 @@ export default async function BatchDetailPage({
           <p className="text-xl font-bold text-gray-900">{(ingredients || []).length}</p>
         </div>
       </div>
+
+      {/* Consume materials (scan-to-consume) */}
+      {canEdit && scannerLines.length > 0 && (
+        <ConsumptionScanner batchId={id} lines={scannerLines} />
+      )}
 
       {/* Ingredients / Traceability */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
