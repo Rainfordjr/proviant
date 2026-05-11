@@ -58,93 +58,107 @@ export function Sidebar({ collapsed, onToggle, drawerOpen, onCloseDrawer }: Side
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeModules, setActiveModules] = useState<Set<string> | null>(null);
 
-  // Load the current user's permissions and active modules once on mount
+  // Load the current user's permissions and active modules once on mount.
+  // On any error or unexpected state, log to console and fall through to a
+  // safe-empty state so the nav at least renders (Dashboard + items with no
+  // permission requirement) instead of being stuck on "Loading…" forever.
   useEffect(() => {
+    let cancelled = false;
     async function loadPermissionsAndModules() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+          error: userErr,
+        } = await supabase.auth.getUser();
 
-      if (!user) return;
+        if (userErr) console.error("[sidebar] auth.getUser failed:", userErr);
+        if (!user) {
+          console.warn("[sidebar] no auth user — rendering empty nav");
+          if (!cancelled) {
+            setUserPerms(new Set());
+            setActiveModules(new Set());
+          }
+          return;
+        }
 
-      // Fetch the user's org_id
-      const { data: profile } = await supabase
-        .from("users")
-        .select("org_id")
-        .eq("id", user.id)
-        .single();
+        const { data: profile, error: profileErr } = await supabase
+          .from("users")
+          .select("org_id")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (profileErr) console.error("[sidebar] users select failed:", profileErr);
 
-      // Fetch active modules for this org + core modules (always active)
-      if (profile?.org_id) {
-        const { data: orgModules } = await supabase
-          .from("org_modules")
-          .select("modules!inner(slug)")
-          .eq("org_id", profile.org_id)
-          .eq("is_active", true);
+        if (profile?.org_id) {
+          const { data: orgModules, error: omErr } = await supabase
+            .from("org_modules")
+            .select("modules!inner(slug)")
+            .eq("org_id", profile.org_id)
+            .eq("is_active", true);
+          if (omErr) console.error("[sidebar] org_modules failed:", omErr);
 
-        const { data: coreModules } = await supabase
-          .from("modules")
-          .select("slug")
-          .eq("is_core", true);
+          const { data: coreModules, error: cmErr } = await supabase
+            .from("modules")
+            .select("slug")
+            .eq("is_core", true);
+          if (cmErr) console.error("[sidebar] modules failed:", cmErr);
 
-        const slugs = new Set<string>();
-        if (orgModules) {
-          for (const om of orgModules) {
+          const slugs = new Set<string>();
+          for (const om of orgModules ?? []) {
             const mod = (om as any).modules;
             if (mod?.slug) slugs.add(mod.slug);
           }
-        }
-        if (coreModules) {
-          for (const cm of coreModules) {
+          for (const cm of coreModules ?? []) {
             if (cm.slug) slugs.add(cm.slug);
           }
+          if (!cancelled) setActiveModules(slugs);
+        } else {
+          if (!cancelled) setActiveModules(new Set());
         }
-        setActiveModules(slugs);
-      } else {
-        setActiveModules(new Set());
-      }
 
-      // Check if user has an admin role
-      const { data: adminCheck } = await supabase
-        .from("user_roles")
-        .select("roles!inner(is_admin)")
-        .eq("user_id", user.id)
-        .eq("roles.is_admin", true)
-        .limit(1);
+        const { data: adminCheck, error: acErr } = await supabase
+          .from("user_roles")
+          .select("roles!inner(is_admin)")
+          .eq("user_id", user.id)
+          .eq("roles.is_admin", true)
+          .limit(1);
+        if (acErr) console.error("[sidebar] admin check failed:", acErr);
 
-      const admin = !!(adminCheck && adminCheck.length > 0);
-      setIsAdmin(admin);
+        const admin = !!(adminCheck && adminCheck.length > 0);
+        if (!cancelled) setIsAdmin(admin);
 
-      if (admin) {
-        // Admins see everything — no need to check individual permissions
-        setUserPerms(new Set(["__admin__"]));
-        return;
-      }
+        if (admin) {
+          if (!cancelled) setUserPerms(new Set(["__admin__"]));
+          return;
+        }
 
-      // For non-admins, fetch their granted permission codes
-      const { data: grants } = await supabase
-        .from("user_roles")
-        .select("roles!inner(role_permissions(permissions(code)))")
-        .eq("user_id", user.id);
+        const { data: grants, error: grantsErr } = await supabase
+          .from("user_roles")
+          .select("roles!inner(role_permissions(permissions(code)))")
+          .eq("user_id", user.id);
+        if (grantsErr) console.error("[sidebar] grants failed:", grantsErr);
 
-      const codes = new Set<string>();
-      if (grants) {
-        for (const ur of grants) {
+        const codes = new Set<string>();
+        for (const ur of grants ?? []) {
           const role = (ur as any).roles;
-          if (role?.role_permissions) {
-            for (const rp of role.role_permissions) {
-              if (rp.permissions?.code) {
-                codes.add(rp.permissions.code);
-              }
-            }
+          for (const rp of role?.role_permissions ?? []) {
+            if (rp.permissions?.code) codes.add(rp.permissions.code);
           }
         }
+        if (!cancelled) setUserPerms(codes);
+      } catch (e) {
+        console.error("[sidebar] load threw:", e);
+        if (!cancelled) {
+          setUserPerms(new Set());
+          setActiveModules(new Set());
+        }
       }
-      setUserPerms(codes);
     }
 
     loadPermissionsAndModules();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const toggleSection = (title: string) => {
