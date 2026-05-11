@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, User, LogOut, Shield, Menu } from "lucide-react";
+import { Bell, Search, User, LogOut, Shield, Menu, Factory } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -77,7 +77,23 @@ export function Header({ onOpenDrawer }: { onOpenDrawer?: () => void } = {}) {
 
 
       {/* Right side */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
+        {/* Open Production app — installable PWA satellite */}
+        <Link
+          href="/production"
+          className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          title="Open Production app"
+        >
+          <Factory size={16} /> Production
+        </Link>
+        <Link
+          href="/production"
+          className="inline-flex sm:hidden rounded-lg border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"
+          aria-label="Open Production app"
+        >
+          <Factory size={18} />
+        </Link>
+
         {/* Notifications */}
         <button className="relative rounded-lg p-2 text-gray-500 hover:bg-gray-100">
           <Bell size={20} />
