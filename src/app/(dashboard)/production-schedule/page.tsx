@@ -7,14 +7,21 @@ export default async function ProductionSchedulePage() {
 
   const supabase = await createClient();
 
-  // Fetch scheduled batches with joins
-  const { data: rawBatches } = await supabase
+  // Fetch scheduled batches. resource_assignments.resource_id can be either
+  // a user_id or an equipment_id (decided by resource_type), so there's no
+  // single FK PostgREST can auto-embed. Fetch resource_assignments without a
+  // nested embed and resolve equipment by id in JS below.
+  const { data: rawBatches, error: batchesErr } = await supabase
     .from("batches")
     .select(
-      `*, product:products(*), recipes(*), resource_assignments:schedule_resource_assignments(*, equipment(*)), product_allocations:batch_product_allocations(*, product:products(*))`
+      `*, product:products(*), recipes(*), resource_assignments:schedule_resource_assignments(*), product_allocations:batch_product_allocations(*, product:products(*))`
     )
     .not("scheduled_date", "is", null)
     .order("scheduled_date", { ascending: true });
+
+  if (batchesErr) {
+    console.error("production-schedule batches query failed:", batchesErr);
+  }
 
   // Resolve assigned users separately to avoid FK naming issues
   const batches = rawBatches || [];
@@ -29,9 +36,31 @@ export default async function ProductionSchedulePage() {
       assignedUserMap[u.id] = u;
     }
   }
+  // Hydrate equipment on resource_assignments by id (cheap; the equipment
+  // table is small per-org). orgEquipment is fetched later in this function;
+  // build a temp map now from a direct query.
+  const equipmentIds = new Set<string>();
+  for (const b of batches as any[]) {
+    for (const ra of (b.resource_assignments ?? []) as any[]) {
+      if (ra.resource_type === "equipment" && ra.resource_id) equipmentIds.add(ra.resource_id);
+    }
+  }
+  let equipmentMap: Record<string, any> = {};
+  if (equipmentIds.size > 0) {
+    const { data: eqRows } = await supabase
+      .from("equipment")
+      .select("*")
+      .in("id", Array.from(equipmentIds));
+    for (const e of eqRows || []) equipmentMap[(e as { id: string }).id] = e;
+  }
+
   const batchesWithUsers = batches.map((b: any) => ({
     ...b,
     assigned_user: b.assigned_to ? assignedUserMap[b.assigned_to] || null : null,
+    resource_assignments: (b.resource_assignments ?? []).map((ra: any) => ({
+      ...ra,
+      equipment: ra.resource_type === "equipment" ? equipmentMap[ra.resource_id] ?? null : null,
+    })),
   }));
 
   // Fetch active products
