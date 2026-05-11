@@ -132,7 +132,7 @@ function QrModal({
   onClose: () => void;
 }) {
   const [magicUrl, setMagicUrl] = useState<string | null>(null);
-  const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [dataUrl, setDataUrl] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
 
@@ -155,7 +155,7 @@ function QrModal({
           if (!cancelled && j.url) {
             target = j.url;
             setMagicUrl(j.url);
-            setEmail(j.email ?? null);
+            setRole(j.role ?? null);
           }
         }
       } catch {
@@ -194,12 +194,12 @@ function QrModal({
         <h2 className="text-lg font-semibold text-gray-900 mb-1">{app.name}</h2>
         <p className="text-sm text-gray-500">
           {authed
-            ? `Scan with a phone or tablet to open the app and sign in as ${email ?? "you"}.`
+            ? `Scan with a phone or tablet to open the app. The device will sign in as the ${role ?? "Production Operator"} — limited to the production app, no admin access.`
             : "Scan to open the app. Sign in manually on that device."}
         </p>
         {authed && (
           <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
-            One-time link. Don&apos;t share publicly — anyone who scans it within the next hour logs in as you.
+            One-time link. Don&apos;t share publicly — anyone who scans it within the next hour can sign in as the operator.
           </p>
         )}
         <div className="mt-4 flex justify-center">
