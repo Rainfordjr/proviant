@@ -427,6 +427,7 @@ export const SIDEBAR_NAV: NavItem[] = [
       { title: "Plans", href: "/settings/plans", icon: "DollarSign", permission: "billing.manage" },
       { title: "Modules", href: "/settings/modules", icon: "Store", permission: "modules.manage" },
       { title: "Production Lines", href: "/settings/production-lines", icon: "Factory", permission: "production_lines.view" },
+      { title: "Apps", href: "/settings/apps", icon: "LayoutGrid", permission: "batches.view" },
       { title: "Roles & Permissions", href: "/settings/roles", icon: "Shield", requireAdmin: true },
       { title: "Users", href: "/settings/users", icon: "Users", requireAdmin: true },
       { title: "Organization", href: "/settings", icon: "Settings" },

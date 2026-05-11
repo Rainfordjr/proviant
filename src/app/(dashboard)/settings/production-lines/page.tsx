@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, Pencil, Check, X, Factory } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRequirePermission } from "@/lib/usePermission";
-import { ProductionQr } from "@/components/production/production-qr";
 
 type Line = {
   id: string;
@@ -137,8 +136,6 @@ export default function ProductionLinesPage() {
           </button>
         )}
       </div>
-
-      <ProductionQr />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
