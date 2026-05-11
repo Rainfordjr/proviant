@@ -1,12 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Honor ?next=/some/path so AuthGuard can bounce users back to where they were.
+  // Only accept same-origin paths to prevent open redirects.
+  const rawNext = searchParams?.get("next") ?? "";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +59,7 @@ export default function LoginPage() {
         setError(msg);
         setLoading(false);
       } else {
-        router.push("/dashboard");
+        router.push(next);
         router.refresh();
       }
     } catch (err: any) {

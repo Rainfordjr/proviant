@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { ToastProvider } from "@/components/ui/toast";
+import { AuthGuard } from "@/components/auth/auth-guard";
 
 export default function DashboardLayout({
   children,
@@ -29,6 +30,7 @@ export default function DashboardLayout({
 
   return (
     <ToastProvider>
+      <AuthGuard />
       <div className="min-h-screen bg-gray-50">
         <Sidebar
           collapsed={collapsed}

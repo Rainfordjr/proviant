@@ -2,6 +2,7 @@ import { requirePlatformAdmin } from "@/lib/platformAdmin";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { AdminHeader } from "@/components/admin/admin-header";
 import { ToastProvider } from "@/components/ui/toast";
+import { AuthGuard } from "@/components/auth/auth-guard";
 
 export default async function AdminLayout({
   children,
@@ -13,6 +14,7 @@ export default async function AdminLayout({
 
   return (
     <ToastProvider>
+      <AuthGuard />
       <div className="min-h-screen bg-gray-950">
         <AdminSidebar />
         <div className="ml-64 transition-all duration-300">

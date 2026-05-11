@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeftRight, Factory } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { AuthGuard } from "@/components/auth/auth-guard";
 
 const LINE_KEY = "proviant_line_id";
 
@@ -40,6 +41,7 @@ export function ProductionShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col h-dvh bg-gray-50">
+      <AuthGuard />
       <header
         className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3"
         style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
