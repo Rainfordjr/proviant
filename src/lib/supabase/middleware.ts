@@ -37,7 +37,8 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAuthPage = path.startsWith("/login") ||
     path.startsWith("/signup") ||
-    path.startsWith("/forgot-password");
+    path.startsWith("/forgot-password") ||
+    path.startsWith("/auth/");  // /auth/callback handles its own auth
   const isApiRoute = path.startsWith("/api/");
   const isPwaAsset = path === "/manifest.webmanifest" ||
     path === "/production-sw.js" ||

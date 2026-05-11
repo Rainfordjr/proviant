@@ -61,7 +61,11 @@ export async function POST(request: NextRequest) {
   }
 
   const origin = request.nextUrl.origin;
-  const redirectTo = `${origin}${parsed.data.redirect}`;
+  // Always route magic links through /auth/callback so the PKCE code is
+  // exchanged server-side and the session lands in cookies (otherwise RLS
+  // sees no user and the app renders empty). The page the operator should
+  // land on after the exchange is passed as ?next=.
+  const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(parsed.data.redirect)}`;
 
   const { data, error } = await adminClient.auth.admin.generateLink({
     type: "magiclink",
