@@ -31,13 +31,19 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Redirect unauthenticated users to login
-  // (except for auth pages, API routes, and the root page)
-  const isAuthPage = request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/signup") ||
-    request.nextUrl.pathname.startsWith("/forgot-password");
-  const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
+  // (except for auth pages, API routes, the root page, and PWA assets
+  //  that browsers fetch without credentials — manifest, service worker,
+  //  icons. Returning HTML login for those breaks PWA install.)
+  const path = request.nextUrl.pathname;
+  const isAuthPage = path.startsWith("/login") ||
+    path.startsWith("/signup") ||
+    path.startsWith("/forgot-password");
+  const isApiRoute = path.startsWith("/api/");
+  const isPwaAsset = path === "/manifest.webmanifest" ||
+    path === "/production-sw.js" ||
+    path.startsWith("/icons/");
 
-  if (!user && !isAuthPage && !isApiRoute && request.nextUrl.pathname !== "/") {
+  if (!user && !isAuthPage && !isApiRoute && !isPwaAsset && path !== "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

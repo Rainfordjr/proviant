@@ -171,25 +171,39 @@ export function BatchPlanningModal({
         (a) => a.productId && parseFloat(a.quantity) > 0
       );
       if (validAllocations.length > 0) {
-        await supabase.from("batch_product_allocations").insert(
-          validAllocations.map((a) => ({
-            batch_id: batch.id,
-            product_id: a.productId,
-            quantity: parseFloat(a.quantity),
-            unit: selectedRecipe?.yield_unit || "units",
-          }))
-        );
+        const { error: allocError } = await supabase
+          .from("batch_product_allocations")
+          .insert(
+            validAllocations.map((a) => ({
+              batch_id: batch.id,
+              product_id: a.productId,
+              quantity: parseFloat(a.quantity),
+              unit: selectedRecipe?.yield_unit || "units",
+            }))
+          );
+        if (allocError) {
+          setError(`Saved batch but allocation failed: ${allocError.message}`);
+          setSaving(false);
+          return;
+        }
       }
 
       // Create equipment assignments
       if (selectedEquipment.length > 0) {
-        await supabase.from("schedule_resource_assignments").insert(
-          selectedEquipment.map((eqId) => ({
-            batch_id: batch.id,
-            resource_type: "equipment" as const,
-            resource_id: eqId,
-          }))
-        );
+        const { error: eqError } = await supabase
+          .from("schedule_resource_assignments")
+          .insert(
+            selectedEquipment.map((eqId) => ({
+              batch_id: batch.id,
+              resource_type: "equipment" as const,
+              resource_id: eqId,
+            }))
+          );
+        if (eqError) {
+          setError(`Saved batch but equipment assignment failed: ${eqError.message}`);
+          setSaving(false);
+          return;
+        }
       }
     }
 
