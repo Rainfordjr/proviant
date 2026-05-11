@@ -146,6 +146,11 @@ export function BatchPlanningModal({
         recipe_id: recipeId,
         quantity_produced: totalQuantity ? parseFloat(totalQuantity) : null,
         scheduled_date: scheduledDate,
+        // Also populate the precise timestamp the production satellite reads
+        // from. Treat the date input as midnight local time.
+        scheduled_for: scheduledDate
+          ? new Date(`${scheduledDate}T00:00:00`).toISOString()
+          : null,
         priority,
         assigned_to: assignedTo || null,
         estimated_duration_hours: duration ? parseFloat(duration) : null,
