@@ -124,36 +124,61 @@ function CopyButton({ url }: { url: string }) {
 
 function QrModal({
   app,
-  url,
+  url: fallbackUrl,
   onClose,
 }: {
   app: SatelliteApp;
   url: string;
   onClose: () => void;
 }) {
+  const [magicUrl, setMagicUrl] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
   const [dataUrl, setDataUrl] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
 
+  // Mint a one-time sign-in link for the current user, then render its QR.
+  // If link generation fails (e.g., Supabase redirect URL not whitelisted),
+  // fall back to the plain URL — operator will just have to log in manually
+  // after scanning, which is the previous behavior.
   useEffect(() => {
     let cancelled = false;
-    import("qrcode")
-      .then(({ default: QRCode }) =>
-        QRCode.toDataURL(url, {
+    (async () => {
+      let target = fallbackUrl;
+      try {
+        const r = await fetch("/api/auth/qr-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ redirect: app.path }),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          if (!cancelled && j.url) {
+            target = j.url;
+            setMagicUrl(j.url);
+            setEmail(j.email ?? null);
+          }
+        }
+      } catch {
+        /* network error — fall through to fallback URL */
+      }
+      try {
+        const { default: QRCode } = await import("qrcode");
+        const d = await QRCode.toDataURL(target, {
           margin: 1,
           width: 512,
           errorCorrectionLevel: "M",
-        })
-      )
-      .then((d) => {
+        });
         if (!cancelled) setDataUrl(d);
-      })
-      .catch((e) => {
+      } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [app.path, fallbackUrl]);
+
+  const authed = !!magicUrl;
 
   return (
     <div
@@ -167,10 +192,17 @@ function QrModal({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold text-gray-900 mb-1">{app.name}</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Scan with a phone or tablet to open the app on that device.
+        <p className="text-sm text-gray-500">
+          {authed
+            ? `Scan with a phone or tablet to open the app and sign in as ${email ?? "you"}.`
+            : "Scan to open the app. Sign in manually on that device."}
         </p>
-        <div className="flex justify-center">
+        {authed && (
+          <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+            One-time link. Don&apos;t share publicly — anyone who scans it within the next hour logs in as you.
+          </p>
+        )}
+        <div className="mt-4 flex justify-center">
           {err ? (
             <p className="text-sm text-red-700">{err}</p>
           ) : dataUrl ? (
@@ -185,7 +217,6 @@ function QrModal({
             </div>
           )}
         </div>
-        <p className="mt-4 text-center text-xs text-gray-500 break-all">{url}</p>
         <button
           type="button"
           onClick={onClose}
