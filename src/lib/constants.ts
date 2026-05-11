@@ -261,6 +261,15 @@ export const SIDEBAR_NAV: NavItem[] = [
     icon: "LayoutDashboard",
   },
   {
+    title: "Apps",
+    href: "/production",
+    icon: "LayoutGrid",
+    permission: "batches.view",
+    children: [
+      { title: "Production", href: "/production", icon: "Factory", permission: "batches.view" },
+    ],
+  },
+  {
     title: "Recipes",
     href: "/recipes",
     icon: "ChefHat",
